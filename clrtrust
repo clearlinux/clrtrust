@@ -1,0 +1,295 @@
+#!/bin/bash
+# COPYRIGHT_PLACEHOLDER
+
+##### HEALTH CHECKS
+
+function is_root {
+    if [ $UID -ne 0 ]; then
+        1>&2 echo "Must be root to execute the command."
+        return 127
+    fi
+    return 0
+}
+
+function has_openssl {
+    which openssl >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        1>&2 echo "openssl is required, but not found."
+        return 127
+    fi
+    return 0
+}
+
+function is_root_ca {
+    # FIXME: implement
+    return 1
+}
+
+function is_number {
+    case $1 in
+        ''|*[!0-9]*) # not a number, return
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+##### DEFAULT LOCATIONS
+
+# trust store default location
+CLR_TRUST_STORE_DFLT=/var/cache/ca-certs
+
+# user-supplied, local source of trust
+CLR_LOCAL_TRUST_SRC=/etc/ca-certs
+
+# Clear Linux-supplied source of trust
+CLR_CLEAR_TRUST_SRC=/usr/share/ca-certs
+
+# takes single argument: a directory
+# the caller should grab the stdout of the call, it will contain found cert info
+# in form of:
+# <file name>\t<sha-256 fingerprint>
+function find_certs {
+    local _dir
+    _dir=$1
+    if [ -z $_dir ]; then return 255; fi
+    if [ ! -d $_dir ]; then return 255; fi
+    (ls $_dir) | while read crt; do
+        finger=`openssl x509 -in "${_dir}/${crt}" -noout -fingerprint -sha256 2>/dev/null`
+        if [ $? -ne 0 ]; then
+            1>&2 echo "ERROR: file ${crt} is not a certificate"
+            continue
+        fi
+        finger=`echo $finger | sed -e 's/^SHA256 Fingerprint=//'`
+        # NB: literal tab in the string below, DO NOT CHANGE
+        echo "${_dir}/${crt}	${finger}"
+    done
+    return 0
+}
+
+function find_all_certs {
+    find_certs $CLR_CLEAR_TRUST_SRC/trusted
+    find_certs $CLR_LOCAL_TRUST_SRC/trusted
+}
+
+function print_generate_help {
+    cat <<EOF
+Usage: ${BASENAME} generate
+
+    This command does not take arguments.
+
+    The store is generated from the following locations:
+        ${CLR_CLEAR_TRUST_SRC}/trusted
+        ${CLR_LOCAL_TRUST_SRC}/trusted
+        ${CLR_LOCAL_TRUST_SRC}/distrusted
+EOF
+}
+
+function cmd_store_generate {
+    local _ca_certs
+
+    while [ $# -gt 0 ]; do
+        case $1 in
+            -h|--help)
+                print_generate_help
+                return 0
+                ;;
+            *)
+                _cert=$1
+                shift
+                ;;
+        esac
+    done
+    # find all the certificates
+    _ca_certs=`find_all_certs`
+
+    dup_certs=`echo "${_ca_certs}" | cut -f 2 | sort | uniq -D`
+    echo "$dup_certs"
+    if [ ! -z "$dup_certs" ]; then
+        #FIXME: remove dups, warn
+        true
+    fi
+
+    umask 022
+
+    CLR_STORE_STAGE=`mktemp -u`
+    mkdir $CLR_STORE_STAGE
+    mkdir $CLR_STORE_STAGE/anchors
+    mkdir $CLR_STORE_STAGE/compat
+
+    echo "${_ca_certs}" | cut -f 1 | xargs -I '{}' cp '{}' $CLR_STORE_STAGE/anchors
+
+    pushd $CLR_STORE_STAGE/anchors >/dev/null
+    c_rehash . >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        1>&2 echo "Error rehashing the anchors."
+        exit 1
+    fi
+    popd >/dev/null
+
+    TMP=`mktemp -u`
+    mv $CLR_TRUST_STORE_DFLT $TMP
+    mv $CLR_STORE_STAGE $CLR_TRUST_STORE_DFLT
+    rm -rf $TMP
+
+    echo "Trust store generated at ${CLR_TRUST_STORE_DFLT}"
+    return 0
+}
+
+function print_add_help {
+    cat <<EOF
+Usage: ${BASENAME} add <file>
+
+    file        file containing a PEM-encoded Root CA certificate
+EOF
+}
+
+function cmd_add {
+    local _cert
+    local _basename
+    local _opt_force
+    local _out
+    local _finger
+    while [ $# -gt 0 ]; do
+        case $1 in
+            -h|--help)
+                print_add_help
+                return 0
+                ;;
+            -f|--force)
+                _opt_force=1
+                shift
+                ;;
+            *)
+                _cert=$1
+                shift
+                ;;
+        esac
+    done
+    if [ -z $_cert ]; then
+        1>&2 echo "Specify certificate to add."
+        print_add_help
+        return 128
+    fi
+    if [ ! -f $_cert ]; then
+        1>&2 echo "No such file $_cert."
+        # get the certificate from the list
+        # TODO: get the file, assign it to _cert
+        return 128
+    fi
+    _out=`mktemp`
+    _finger=`openssl x509 -in $_cert -noout -fingerprint -sha256 2>$_out \
+            | sed -e 's/^SHA256 Fingerprint=//'`
+    if [ $? -ne 0 ]; then
+        1>&2 echo "$_cert is not a certificate."
+        1>&2 cat $_out
+        rm $_out
+        return 128
+    fi
+    is_root_ca
+    if [ $? -ne 1 ]; then
+        1>&2 cat <<EOF
+Certificate is not a Root CA. Not adding intermediates.
+EOF
+        return 128
+    fi
+    find_all_certs | grep $_finger >/dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        1>&2 cat <<EOF
+Certificate is already trusted. Not adding duplicates.
+EOF
+        return 128
+    fi
+    rm $_out
+    _basename=`basename $_cert`
+    if [ ! -f $CLR_LOCAL_TRUST_SRC/trusted/$_basename ]; then
+        cp $_cert $CLR_LOCAL_TRUST_SRC/trusted
+    else
+        # FIXME: if it's not a duplicate, should really not be picky about
+        # file names.
+        1>&2 echo "File $_basename already exists."
+    fi
+    return 0
+}
+
+function print_list_help {
+}
+
+function cmd_list {
+}
+
+function print_help {
+    cat <<EOF
+Usage: ${BASENAME} [-v|--verbose] <command> [options]
+
+    Commands
+        generate    generates the trust store
+        add         add trust to a CA
+        remove      remove trust to a CA
+        restore     restore trust to previously removed CA
+        check       sanity/consistency check of the trust store
+
+${BASENAME} <command> --help to get help on specific command.
+EOF
+}
+
+##### GLOBAL VARS/OPTIONS
+VERBOSE=0
+COMMAND=""
+BASENAME=`basename $0`
+ARGS=$*
+
+while [ $# -gt 0 ]; do
+    opt=$1
+    case $opt in
+        -v|--verbose)
+            VERBOSE=1
+            ;;
+        generate|list|add|remove|restore|check)
+            COMMAND=$opt
+            ;;
+    esac
+    shift
+    if [ ! -z $COMMAND ]; then
+        break
+    fi
+done
+
+if [ -z $COMMAND ]; then
+    1>&2 echo Command not understood: $ARGS
+    print_help
+    exit 128
+fi
+
+case $COMMAND in
+    generate|add|remove|restore)
+        # must be root
+        is_root
+        if [ $? -ne 0 ]; then
+            exit 127
+        fi
+        ;;
+esac
+
+case $COMMAND in
+    generate)
+        cmd_store_generate $*
+        exit $?
+        ;;
+    add)
+        cmd_add $*
+        exit $?
+        ;;
+    list)
+        cmd_list $*
+        exit $?
+        ;;
+    remove|restore|check)
+        1>&2 echo "$COMMAND not yet supported."
+        exit 1
+        ;;
+esac
+
+# vim: si:noai:nocin:tw=80:sw=4:ts=4:et:nu
