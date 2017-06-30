@@ -40,12 +40,13 @@ function is_number {
 
 # trust store default location
 CLR_TRUST_STORE_DFLT=/var/cache/ca-certs
+CLR_TRUST_STORE=${CLR_TRUST_STORE:-$CLR_TRUST_STORE_DFLT}
 
 # user-supplied, local source of trust
-CLR_LOCAL_TRUST_SRC=/etc/ca-certs
+CLR_LOCAL_TRUST_SRC=${CLR_LOCAL_TRUST_SRC:-/etc/ca-certs}
 
 # Clear Linux-supplied source of trust
-CLR_CLEAR_TRUST_SRC=/usr/share/ca-certs
+CLR_CLEAR_TRUST_SRC=${CLR_CLEAR_TRUST_SRC:-/usr/share/ca-certs}
 
 # takes single argument: a directory
 # the caller should grab the stdout of the call, it will contain found cert info
@@ -130,11 +131,11 @@ function cmd_store_generate {
     popd >/dev/null
 
     TMP=`mktemp -u`
-    mv $CLR_TRUST_STORE_DFLT $TMP
-    mv $CLR_STORE_STAGE $CLR_TRUST_STORE_DFLT
+    mv $CLR_TRUST_STORE $TMP
+    mv $CLR_STORE_STAGE $CLR_TRUST_STORE
     rm -rf $TMP
 
-    echo "Trust store generated at ${CLR_TRUST_STORE_DFLT}"
+    echo "Trust store generated at ${CLR_TRUST_STORE}"
     return 0
 }
 
@@ -215,9 +216,11 @@ EOF
 }
 
 function print_list_help {
+    true
 }
 
 function cmd_list {
+    true
 }
 
 function print_help {
@@ -265,10 +268,13 @@ fi
 
 case $COMMAND in
     generate|add|remove|restore)
-        # must be root
-        is_root
-        if [ $? -ne 0 ]; then
-            exit 127
+        # must be root if writing to the default location
+        echo $CLR_TRUST_STORE
+        if [ "x$CLR_TRUST_STORE" = "x$CLR_TRUST_STORE_DFLT" ]; then
+            is_root
+            if [ $? -ne 0 ]; then
+                exit 127
+            fi
         fi
         ;;
 esac
