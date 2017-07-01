@@ -90,6 +90,10 @@ EOF
 
 function cmd_generate {
     local _ca_certs
+    local _dup_certs
+    local _distrust_certs
+    local _ca_certs_cnt
+    local _distrust_certs_cnt
 
     while [ $# -gt 0 ]; do
         case $1 in
@@ -105,14 +109,25 @@ function cmd_generate {
     done
     # find all the certificates
     _ca_certs=`find_all_certs`
-
-    dup_certs=`echo "${_ca_certs}" | cut -f 2 | sort | uniq -D`
-    echo "$dup_certs"
-    if [ ! -z "$dup_certs" ]; then
+    
+    # handle the duplicates
+    _dup_certs=`echo "${_ca_certs}" | cut -f 2 | sort | uniq -D`
+    echo "$_dup_certs"
+    if [ ! -z "$_dup_certs" ]; then
         #FIXME: remove dups, warn
         true
     fi
 
+    # remove the distrusted ones
+    _distrust_certs=`find_certs $CLR_LOCAL_TRUST_SRC/distrusted`
+    _ca_certs_cnt=`echo "$_ca_certs" | wc -l`
+    _distrust_certs_cnt=`echo "$_distrust_certs" | wc -l`
+    echo "Distrusting $_distrust_certs_cnt certificate(s)."
+    for h in `echo "$_distrust_certs" | cut -f 2`; do
+        _ca_certs=`echo "$_ca_certs" | grep -v $h`
+    done
+
+    # write the store
     umask 022
 
     CLR_STORE_STAGE=`mktemp -u`

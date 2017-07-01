@@ -11,10 +11,10 @@ setup() {
     cp $CERTS/c2.pem $CLR_LOCAL_TRUST_SRC/distrusted
 }
 
-@test "generate store, source both Clear and local" {
-    skip
+@test "generate store, source both Clear and local, local distrust" {
     $CLRTRUST generate
     cnt=`ls $STORE/anchors | wc -l`
+    [ ! -f $STORE/anchors/c2.pem ]
     [ $cnt -eq 6 ]
 }
 
