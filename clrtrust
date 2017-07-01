@@ -88,7 +88,7 @@ Usage: ${BASENAME} generate
 EOF
 }
 
-function cmd_store_generate {
+function cmd_generate {
     local _ca_certs
 
     while [ $# -gt 0 ]; do
@@ -281,7 +281,7 @@ esac
 
 case $COMMAND in
     generate)
-        cmd_store_generate $*
+        cmd_generate $*
         exit $?
         ;;
     add)
