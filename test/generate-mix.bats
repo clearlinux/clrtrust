@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# Copyright 2017 Intel Corporation
 
 load test_lib
 

@@ -1,3 +1,5 @@
+# Copyright 2017 Intel Corporation
+
 function find_clrtrust {
     if [ -x $BATS_TEST_DIRNAME/../clrtrust ]; then
         CLRTRUST=`realpath $BATS_TEST_DIRNAME/../clrtrust`
