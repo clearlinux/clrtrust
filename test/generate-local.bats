@@ -13,6 +13,12 @@ setup() {
     $CLRTRUST generate
     cnt=`ls $STORE/anchors | wc -l`
     [ $cnt -eq 8 ]
+    out=`$CLRTRUST list | grep ^id`
+    expected="id: 1
+id: 2
+id: 3
+id: 4"
+    [ "x$out" = "x$expected" ]
 }
 
 teardown() {

@@ -16,6 +16,11 @@ setup() {
     cnt=`ls $STORE/anchors | wc -l`
     [ ! -f $STORE/anchors/c2.pem ]
     [ $cnt -eq 6 ]
+    out=`$CLRTRUST list | grep ^id`
+    expected="id: 1
+id: 2
+id: 3"
+    [ "x$out" = "x$expected" ]
 }
 
 teardown() {

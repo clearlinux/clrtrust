@@ -231,11 +231,59 @@ EOF
 }
 
 function print_list_help {
-    true
+    cat <<EOF
+Usage: ${BASENAME} list
+
+    Prints the list of certificates, each in form of
+        id: <id>
+            File: <filename>
+            Authority: <issuer name>
+            Expires: <expiration date>
+EOF
 }
 
 function cmd_list {
-    true
+    local _certs
+    local _id
+    local _info
+    local _indent
+    while [ $# -gt 0 ]; do
+        case $1 in
+            -h|--help)
+                print_list_help
+                return 0
+                ;;
+        esac
+    done
+    _id=1
+    _indent="    "
+    if [ ! -d ${CLR_TRUST_STORE}/anchors ]; then
+        1>&2 echo "${CLR_TRUST_STORE} is not a trust store." \
+            " Use ${BASENAME} generate to create the store."
+        return 128
+    fi
+    _certs=`find ${CLR_TRUST_STORE}/anchors -maxdepth 1 -type f | LC_COLLATE=C sort`
+    if [ -z ${_certs} ]; then
+        test ! -z $VERBOSE && echo "Nothing is trusted. No anchors found in ${CLR_TRUST_STORE}."
+        return 0
+    fi
+
+    echo "$_certs" | while read _crt; do
+        _info=`openssl x509 -in ${_crt} -noout -issuer -enddate \
+            | sed -e "s/^issuer=\s*/${_indent}Authority: /" -e "s/^notAfter=\s*/${_indent}Expires: /"`
+        if [ $? -ne 0 ]; then
+            1>&2 echo "${_crt} is not an X.509 certificate."
+        fi
+        cat <<EOF
+id: ${_id}
+${_indent}File: ${_crt}
+EOF
+        echo "$_info"
+        let "_id+=1"
+    done
+
+    return 0
+
 }
 
 function print_help {
