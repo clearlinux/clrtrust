@@ -338,7 +338,6 @@ fi
 case $COMMAND in
     generate|add|remove|restore)
         # must be root if writing to the default location
-        echo $CLR_TRUST_STORE
         if [ "x$CLR_TRUST_STORE" = "x$CLR_TRUST_STORE_DFLT" ]; then
             is_root
             if [ $? -ne 0 ]; then
