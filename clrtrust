@@ -290,7 +290,7 @@ EOF
 
 function print_help {
     cat <<EOF
-Usage: ${BASENAME} [-v|--verbose] <command> [options]
+Usage: ${BASENAME} [-v|--verbose] [-h|--help] <command> [options]
 
     Commands
         generate    generates the trust store
