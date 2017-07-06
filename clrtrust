@@ -315,6 +315,10 @@ while [ $# -gt 0 ]; do
         -v|--verbose)
             VERBOSE=1
             ;;
+        -h|--help)
+            print_help
+            exit 0
+            ;;
         generate|list|add|remove|restore|check)
             COMMAND=$opt
             ;;
