@@ -122,10 +122,12 @@ function cmd_generate {
     _distrust_certs=`find_certs $CLR_LOCAL_TRUST_SRC/distrusted`
     _ca_certs_cnt=`echo "$_ca_certs" | wc -l`
     _distrust_certs_cnt=`echo "$_distrust_certs" | wc -l`
-    echo "Distrusting $_distrust_certs_cnt certificate(s)."
-    for h in `echo "$_distrust_certs" | cut -f 2`; do
-        _ca_certs=`echo "$_ca_certs" | grep -v $h`
-    done
+    if [ $_distrust_certs_cnt -gt 0 ]; then
+        echo "Distrusting $_distrust_certs_cnt certificate(s)."
+        for h in `echo "$_distrust_certs" | cut -f 2`; do
+            _ca_certs=`echo "$_ca_certs" | grep -v $h`
+        done
+    fi
 
     # write the store
     umask 022
