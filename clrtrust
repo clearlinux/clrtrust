@@ -57,15 +57,15 @@ function find_certs {
     _dir=$1
     if [ -z $_dir ]; then return 255; fi
     if [ ! -d $_dir ]; then return 255; fi
-    (ls $_dir) | while read crt; do
-        finger=`openssl x509 -in "${_dir}/${crt}" -noout -fingerprint -sha256 2>/dev/null`
+    find $_dir -maxdepth 1 -type f | while read _crt; do
+        finger=`openssl x509 -in "${_crt}" -noout -fingerprint -sha256 2>/dev/null`
         if [ $? -ne 0 ]; then
-            1>&2 echo "ERROR: file ${crt} is not a certificate"
+            1>&2 echo "ERROR: file ${_crt} is not a certificate"
             continue
         fi
         finger=`echo $finger | sed -e 's/^SHA256 Fingerprint=//'`
-        # NB: literal tab in the string below, DO NOT CHANGE
-        echo "${_dir}/${crt}	${finger}"
+        # NB: BEWARE: literal tab char in the string below
+        echo "${_crt}	${finger}"
     done
     return 0
 }
