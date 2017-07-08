@@ -12,7 +12,7 @@ function is_root {
 }
 
 function has_openssl {
-    which openssl >/dev/null 2>&1
+    command -v openssl >/dev/null 2>&1
     if [ $? -ne 0 ]; then
         1>&2 echo "openssl is required, but not found."
         return 127
