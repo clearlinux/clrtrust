@@ -257,8 +257,8 @@ function cmd_list {
                 ;;
         esac
     done
-    _id=1
-    _indent="    "
+    # 4 spaces for sed
+    _indent="\ \ \ \ "
     if [ ! -d ${CLR_TRUST_STORE}/anchors ]; then
         1>&2 echo "${CLR_TRUST_STORE} is not a trust store." \
             " Use ${BASENAME} generate to create the store."
@@ -271,20 +271,20 @@ function cmd_list {
     fi
 
     echo "$_certs" | while read _crt; do
-        _info=`openssl x509 -in ${_crt} -noout -issuer -enddate \
-            | sed -e "s/^issuer=\s*/${_indent}Authority: /" -e "s/^notAfter=\s*/${_indent}Expires: /"`
+        _info=`openssl x509 -in ${_crt} -noout -fingerprint -sha256 -issuer -enddate`
         if [ $? -ne 0 ]; then
             1>&2 echo "${_crt} is not an X.509 certificate."
         fi
-        cat <<EOF
-id: ${_id}
-${_indent}File: ${_crt}
-EOF
+        _info=`echo "$_info" |                                          \
+            sed -e "s/^SHA256 Fingerprint=/id: /"                        \
+                    -e "2i${_indent}File: ${_crt}"                        \
+                    -e "s/^issuer=\s*/${_indent}Authority: /"              \
+                    -e "s/^notAfter=\s*/${_indent}Expires: /"`
         echo "$_info"
-        let "_id+=1"
     done
 
     return 0
+}
 
 }
 
