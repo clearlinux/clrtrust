@@ -167,7 +167,6 @@ EOF
 function cmd_add {
     local _cert
     local _basename
-    local _opt_force
     local _out
     local _finger
     while [ $# -gt 0 ]; do
@@ -175,10 +174,6 @@ function cmd_add {
             -h|--help)
                 print_add_help
                 return 0
-                ;;
-            -f|--force)
-                _opt_force=1
-                shift
                 ;;
             *)
                 _cert=$1
@@ -300,7 +295,8 @@ Usage: ${BASENAME} remove [-f|--force] [filename|id]...
     either by a file containing PEM-encoded X.509 certificate or an id as
     obtained from the list command.
 
-    -f
+    -f | --force        Forces removal of certificates
+    -h | --help         Prints this help message
 EOF
 }
 
@@ -311,6 +307,7 @@ function cmd_remove {
     local _out_pipe
     local _invld_files
     local _certs
+    local _opt_force
     while [ $# -gt 0 ]; do
         case $1 in
             -h|--help)
@@ -319,6 +316,7 @@ function cmd_remove {
                 ;;                    
             -f|--force)
                 # TODO: implement forcing
+                _opt_force=1
                 true
                 ;;
             *)
