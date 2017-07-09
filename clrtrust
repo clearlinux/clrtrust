@@ -376,10 +376,10 @@ $1"
             echo $f
             rm $f
         done
+        cmd_generate
     else 
         echo "Nothing to do."
     fi
-    cmd_generate
     rm $_err_pipe $_out_pipe
     return 0
 }
