@@ -201,7 +201,7 @@ function cmd_add {
     _finger=`openssl x509 -in $_cert -noout -fingerprint -sha256 2>$_out \
             | sed -e 's/^SHA256 Fingerprint=//'`
     if [ $? -ne 0 ]; then
-        1>&2 echo "$_cert is not a certificate."
+        1>&2 echo "$_cert is not an X.509 certificate."
         1>&2 cat $_out
         rm $_out
         return 128
@@ -249,13 +249,19 @@ function cmd_list {
     local _id
     local _info
     local _indent
+    local _err
     while [ $# -gt 0 ]; do
         case $1 in
             -h|--help)
                 print_list_help
                 return 0
                 ;;
+            *)
+                print_list_help
+                return 1
+                ;;
         esac
+        shift
     done
     # 4 spaces for sed
     _indent="\ \ \ \ "
@@ -286,6 +292,98 @@ function cmd_list {
     return 0
 }
 
+function print_remove_help {
+    cat <<EOF
+Usage: ${BASENAME} remove [-f|--force] [filename|id]...
+
+    Distrusts specified Certificate Authorities. Each CA can be represented
+    either by a file containing PEM-encoded X.509 certificate or an id as
+    obtained from the list command.
+
+    -f
+EOF
+}
+
+function cmd_remove {
+    local _files
+    local _ids
+    local _err_pipe
+    local _out_pipe
+    local _invld_files
+    local _certs
+    while [ $# -gt 0 ]; do
+        case $1 in
+            -h|--help)
+                print_remove_help
+                return 0
+                ;;                    
+            -f|--force)
+                # TODO: implement forcing
+                true
+                ;;
+            *)
+                if [ -f "$1" ]; then
+                    # need newline as a separator in case filename comes with
+                    # spaces. first empty line will be deleted later.
+                    _files="$_files
+$1"
+                else
+                    _ids="$_ids $1"
+                fi
+                ;;
+        esac
+        shift
+    done
+
+    _err_pipe=`mktemp -u`
+    _out_pipe=`mktemp -u`
+    mkfifo $_err_pipe
+    mkfifo $_out_pipe
+    _files=`echo "$_files" | sed -e '1d'`
+    test ! -z "$_files" && echo "$_files" | while read _crt; do
+        finger=`openssl x509 -in "$_crt" -noout -fingerprint -sha256 2>/dev/null`
+        if [ $? -ne 0 ]; then
+            echo $_crt >>$_err_pipe &
+            echo "$_crt is not an X.509 certificate"
+            continue
+        fi
+        echo "${_crt}	${finger}" | sed -e 's/\tSHA256 Fingerprint=/\t/' >>$_out_pipe &
+    done
+    echo >>$_out_pipe &
+    echo >>$_err_pipe &
+    _invld_files=`cat $_err_pipe`
+    if [ ! -z $_invld_files ]; then
+        echo $_invld_files
+    fi
+    _files=`cat $_out_pipe`
+    _ids=`echo $_ids && (echo "$_files" | cut -f 2)`
+    _certs=`find_all_certs`
+    for _id in $_ids; do
+        f=`echo "$_certs" | grep $_id`
+        if [ $? -eq 0 ]; then
+            echo "$f" | cut -f 1 >>$_out_pipe &
+        else
+            f=`echo "$_files" | grep $_id | cut -f 1`
+            if [ -z $f ]; then
+                1>&2 echo "Certificate id $_id not found."
+            else
+                1>&2 echo "Certificate id $_id not found (file: $f)."
+            fi
+        fi
+    done
+    echo >>$_out_pipe &
+    _files=`cat $_out_pipe`
+    if [ ! -z $_files ]; then
+        echo "$_files" | while read f; do
+            echo $f
+            rm $f
+        done
+    else 
+        echo "Nothing to do."
+    fi
+    cmd_generate
+    rm $_err_pipe $_out_pipe
+    return 0
 }
 
 function print_help {
@@ -294,6 +392,7 @@ Usage: ${BASENAME} [-v|--verbose] [-h|--help] <command> [options]
 
     Commands
         generate    generates the trust store
+        list        list CAs
         add         add trust to a CA
         remove      remove trust to a CA
         restore     restore trust to previously removed CA
@@ -360,7 +459,11 @@ case $COMMAND in
         cmd_list $*
         exit $?
         ;;
-    remove|restore|check)
+    remove)
+        cmd_remove $*
+        exit $?
+        ;;
+    restore|check)
         1>&2 echo "$COMMAND not yet supported."
         exit 1
         ;;
