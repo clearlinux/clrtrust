@@ -387,9 +387,8 @@ $1"
     done
     echo >>$_out_pipe &
     _files=`cat $_out_pipe`
-    if [ ! -z $_files ]; then
+    if [ ! -z "$_files" ]; then
         echo "$_files" | while read f; do
-            echo $f
             rm $f
         done
         cmd_generate
