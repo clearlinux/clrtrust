@@ -219,6 +219,7 @@ EOF
     _basename=`basename $_cert`
     if [ ! -f $CLR_LOCAL_TRUST_SRC/trusted/$_basename ]; then
         cp $_cert $CLR_LOCAL_TRUST_SRC/trusted
+        cmd_generate
     else
         # FIXME: if it's not a duplicate, should really not be picky about
         # file names.
