@@ -165,10 +165,11 @@ EOF
 }
 
 function cmd_add {
-    local _cert
+    local _files
     local _basename
-    local _out
+    local _ret
     local _finger
+    local _ca_certs
     while [ $# -gt 0 ]; do
         case $1 in
             -h|--help)
@@ -176,56 +177,70 @@ function cmd_add {
                 return 0
                 ;;
             *)
-                _cert=$1
+                _files="$_files
+$1"
                 shift
                 ;;
         esac
     done
-    if [ -z $_cert ]; then
-        1>&2 echo "Specify certificate to add."
+    if [ -z "$_files" ]; then
+        1>&2 echo "Specify certificate(s) to add."
         print_add_help
         return 128
     fi
-    if [ ! -f $_cert ]; then
-        1>&2 echo "No such file $_cert."
-        # get the certificate from the list
-        # TODO: get the file, assign it to _cert
-        return 128
-    fi
-    _out=`mktemp`
-    _finger=`openssl x509 -in $_cert -noout -fingerprint -sha256 2>$_out \
-            | sed -e 's/^SHA256 Fingerprint=//'`
-    if [ $? -ne 0 ]; then
-        1>&2 echo "$_cert is not an X.509 certificate."
-        1>&2 cat $_out
-        rm $_out
-        return 128
-    fi
-    is_root_ca
-    if [ $? -ne 1 ]; then
-        1>&2 cat <<EOF
-Certificate is not a Root CA. Not adding intermediates.
+    _files=`echo "$_files" | sed -e '1d'`
+    _ca_certs=`find_all_certs`
+    _err_pipe=`mktemp -u`
+    _tmp=`mktemp`
+    mkfifo $_err_pipe
+    echo "$_files" | while read f; do
+        if [ ! -f "$f" ]; then
+            echo "No such file $f."
+            # get the certificate from the list
+            # TODO: get the file, assign it to _files
+            continue
+        fi
+        _finger=`openssl x509 -in "$f" -noout -fingerprint -sha256 2>$_tmp`
+        if [ $? -ne 0 ]; then
+            echo "$f is not an X.509 certificate."
+            cat $_tmp
+            continue
+        fi
+        _finger=`echo $_finger | sed -e 's/^SHA256 Fingerprint=//'`
+        is_root_ca
+        if [ $? -ne 1 ]; then
+            cat <<EOF
+Certificate $f is not a Root CA. Not adding intermediates.
 EOF
-        return 128
-    fi
-    find_all_certs | grep $_finger >/dev/null 2>&1
-    if [ $? -eq 0 ]; then
-        1>&2 cat <<EOF
-Certificate is already trusted. Not adding duplicates.
+            continue
+        fi
+        echo "$_ca_certs" | grep $_finger >/dev/null 2>&1
+        if [ $? -eq 0 ]; then
+            cat <<EOF
+Certificate $f is already trusted. Not adding duplicates.
 EOF
-        return 128
-    fi
-    rm $_out
-    _basename=`basename $_cert`
-    if [ ! -f $CLR_LOCAL_TRUST_SRC/trusted/$_basename ]; then
-        cp $_cert $CLR_LOCAL_TRUST_SRC/trusted
+            continue
+        fi
+        _basename=`basename $f`
+        if [ -f $CLR_LOCAL_TRUST_SRC/trusted/$_basename ]; then
+            # FIXME: it's not a duplicate, should really not be picky about file
+            # names.
+            echo "File $_basename already exists."
+            continue
+        fi
+    done >$_err_pipe &
+    _out=`cat $_err_pipe`
+    if [ -z "$_out" ]; then
+        echo "$_files" | while read f; do
+            cp "$f" $CLR_LOCAL_TRUST_SRC/trusted
+        done
         cmd_generate
     else
-        # FIXME: if it's not a duplicate, should really not be picky about
-        # file names.
-        1>&2 echo "File $_basename already exists."
+        _ret=128
+        1>&2 echo "$_out"
     fi
-    return 0
+    rm $_err_pipe $_tmp
+    return $_ret
 }
 
 function print_list_help {
