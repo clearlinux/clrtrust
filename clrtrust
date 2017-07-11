@@ -53,19 +53,19 @@ CLR_CLEAR_TRUST_SRC=${CLR_CLEAR_TRUST_SRC:-/usr/share/ca-certs}
 # in form of:
 # <file name>\t<sha-256 fingerprint>
 function find_certs {
-    local _dir
-    _dir=$1
-    if [ -z $_dir ]; then return 255; fi
-    if [ ! -d $_dir ]; then return 255; fi
-    find $_dir -maxdepth 1 -type f | while read _crt; do
-        finger=`openssl x509 -in "${_crt}" -noout -fingerprint -sha256 2>/dev/null`
+    local dir
+    dir=$1
+    if [ -z $dir ]; then return 255; fi
+    if [ ! -d $dir ]; then return 255; fi
+    find $dir -maxdepth 1 -type f | while read f; do
+        finger=`openssl x509 -in "${f}" -noout -fingerprint -sha256 2>/dev/null`
         if [ $? -ne 0 ]; then
-            1>&2 echo "ERROR: file ${_crt} is not a certificate"
+            1>&2 echo "ERROR: file ${f} is not a certificate"
             continue
         fi
         finger=`echo $finger | sed -e 's/^SHA256 Fingerprint=//'`
         # NB: BEWARE: literal tab char in the string below
-        echo "${_crt}	${finger}"
+        echo "${f}	${finger}"
     done
     return 0
 }
@@ -89,11 +89,11 @@ EOF
 }
 
 function cmd_generate {
-    local _ca_certs
-    local _dup_certs
-    local _distrust_certs
-    local _ca_certs_cnt
-    local _distrust_certs_cnt
+    local ca_certs
+    local dup_certs
+    local distrust_certs
+    local ca_certs_cnt
+    local distrust_certs_cnt
 
     while [ $# -gt 0 ]; do
         case $1 in
@@ -102,30 +102,30 @@ function cmd_generate {
                 return 0
                 ;;
             *)
-                _cert=$1
-                shift
+                print_generate_help
+                return 1
                 ;;
         esac
     done
     # find all the certificates
-    _ca_certs=`find_all_certs`
+    ca_certs=`find_all_certs`
     
     # handle the duplicates
-    _dup_certs=`echo "${_ca_certs}" | cut -f 2 | sort | uniq -D`
-    echo "$_dup_certs"
-    if [ ! -z "$_dup_certs" ]; then
+    dup_certs=`echo "${ca_certs}" | cut -f 2 | sort | uniq -D`
+    echo "$dup_certs"
+    if [ ! -z "$dup_certs" ]; then
         #FIXME: remove dups, warn
         true
     fi
 
     # remove the distrusted ones
-    _distrust_certs=`find_certs $CLR_LOCAL_TRUST_SRC/distrusted`
-    _ca_certs_cnt=`echo "$_ca_certs" | wc -l`
-    _distrust_certs_cnt=`echo "$_distrust_certs" | wc -l`
-    if [ $_distrust_certs_cnt -gt 0 ]; then
-        echo "Distrusting $_distrust_certs_cnt certificate(s)."
-        for h in `echo "$_distrust_certs" | cut -f 2`; do
-            _ca_certs=`echo "$_ca_certs" | grep -v $h`
+    distrust_certs=`find_certs $CLR_LOCAL_TRUST_SRC/distrusted`
+    ca_certs_cnt=`echo "$ca_certs" | wc -l`
+    distrust_certs_cnt=`echo "$distrust_certs" | wc -l`
+    if [ $distrust_certs_cnt -gt 0 ]; then
+        echo "Distrusting $distrust_certs_cnt certificate(s)."
+        for h in `echo "$distrust_certs" | cut -f 2`; do
+            ca_certs=`echo "$ca_certs" | grep -v $h`
         done
     fi
 
@@ -137,7 +137,7 @@ function cmd_generate {
     mkdir $CLR_STORE_STAGE/anchors
     mkdir $CLR_STORE_STAGE/compat
 
-    echo "${_ca_certs}" | cut -f 1 | xargs -I '{}' cp '{}' $CLR_STORE_STAGE/anchors
+    echo "${ca_certs}" | cut -f 1 | xargs -I '{}' cp '{}' $CLR_STORE_STAGE/anchors
 
     pushd $CLR_STORE_STAGE/anchors >/dev/null
     c_rehash . >/dev/null 2>&1
@@ -165,11 +165,11 @@ EOF
 }
 
 function cmd_add {
-    local _files
-    local _basename
-    local _ret
-    local _finger
-    local _ca_certs
+    local files
+    local ret
+    local ca_certs
+    local err_pipe
+    local tmp
     while [ $# -gt 0 ]; do
         case $1 in
             -h|--help)
@@ -177,36 +177,37 @@ function cmd_add {
                 return 0
                 ;;
             *)
-                _files="$_files
+                # first empty line will be deleted few lines later
+                files="$files
 $1"
                 shift
                 ;;
         esac
     done
-    if [ -z "$_files" ]; then
+    if [ -z "$files" ]; then
         1>&2 echo "Specify certificate(s) to add."
         print_add_help
         return 128
     fi
-    _files=`echo "$_files" | sed -e '1d'`
-    _ca_certs=`find_all_certs`
-    _err_pipe=`mktemp -u`
-    _tmp=`mktemp`
-    mkfifo $_err_pipe
-    echo "$_files" | while read f; do
+    files=`echo "$files" | sed -e '1d'`
+    ca_certs=`find_all_certs`
+    err_pipe=`mktemp -u`
+    tmp=`mktemp`
+    mkfifo $err_pipe
+    echo "$files" | while read f; do
         if [ ! -f "$f" ]; then
             echo "No such file $f."
             # get the certificate from the list
-            # TODO: get the file, assign it to _files
+            # TODO: get the file, assign it to files
             continue
         fi
-        _finger=`openssl x509 -in "$f" -noout -fingerprint -sha256 2>$_tmp`
+        finger=`openssl x509 -in "${f}" -noout -fingerprint -sha256 2>$tmp`
         if [ $? -ne 0 ]; then
             echo "$f is not an X.509 certificate."
-            cat $_tmp
+            cat $tmp
             continue
         fi
-        _finger=`echo $_finger | sed -e 's/^SHA256 Fingerprint=//'`
+        finger=`echo $finger | sed -e 's/^SHA256 Fingerprint=//'`
         is_root_ca
         if [ $? -ne 1 ]; then
             cat <<EOF
@@ -214,35 +215,35 @@ Certificate $f is not a Root CA. Not adding intermediates.
 EOF
             continue
         fi
-        echo "$_ca_certs" | grep $_finger >/dev/null 2>&1
+        echo "$ca_certs" | grep $finger >/dev/null 2>&1
         if [ $? -eq 0 ]; then
             cat <<EOF
 Certificate $f is already trusted. Not adding duplicates.
 EOF
             continue
         fi
-        _basename=`basename $f`
-        if [ -f $CLR_LOCAL_TRUST_SRC/trusted/$_basename ]; then
+        fname=`basename $f`
+        if [ -f $CLR_LOCAL_TRUST_SRC/trusted/$fname ]; then
             # FIXME: it's not a duplicate, should really not be picky about file
             # names.
-            echo "File $_basename already exists."
+            echo "File $fname already exists."
             continue
         fi
-    done >$_err_pipe &
-    _out=`cat $_err_pipe`
-    if [ -z "$_out" ]; then
-        echo "$_files" | while read f; do
-            cp "$f" $CLR_LOCAL_TRUST_SRC/trusted
+    done >$err_pipe &
+    out=`cat $err_pipe`
+    if [ -z "$out" ]; then
+        echo "$files" | while read f; do
+            cp "${f}" $CLR_LOCAL_TRUST_SRC/trusted
         done
         cmd_generate
     else
-        _ret=128
-        1>&2 echo "$_out"
+        ret=128
+        1>&2 echo "$out"
     fi
-    rm $_err_pipe $_tmp
-    return $_ret
+    rm $err_pipe $tmp
+    return $ret
 }
-
+ 
 function print_list_help {
     cat <<EOF
 Usage: ${BASENAME} list
@@ -256,11 +257,10 @@ EOF
 }
 
 function cmd_list {
-    local _certs
-    local _id
-    local _info
-    local _indent
-    local _err
+    local certs
+    local info
+    local indent
+    local err
     while [ $# -gt 0 ]; do
         case $1 in
             -h|--help)
@@ -275,29 +275,29 @@ function cmd_list {
         shift
     done
     # 4 spaces for sed
-    _indent="\ \ \ \ "
+    indent="\ \ \ \ "
     if [ ! -d ${CLR_TRUST_STORE}/anchors ]; then
         1>&2 echo "${CLR_TRUST_STORE} is not a trust store." \
             " Use ${BASENAME} generate to create the store."
         return 128
     fi
-    _certs=`find ${CLR_TRUST_STORE}/anchors -maxdepth 1 -type f | LC_COLLATE=C sort`
-    if [ -z ${_certs} ]; then
+    certs=`find ${CLR_TRUST_STORE}/anchors -maxdepth 1 -type f | LC_COLLATE=C sort`
+    if [ -z ${certs} ]; then
         test ! -z $VERBOSE && echo "Nothing is trusted. No anchors found in ${CLR_TRUST_STORE}."
         return 0
     fi
 
-    echo "$_certs" | while read _crt; do
-        _info=`openssl x509 -in ${_crt} -noout -fingerprint -sha256 -issuer -enddate`
+    echo "$certs" | while read f; do
+        info=`openssl x509 -in "${f}" -noout -fingerprint -sha256 -issuer -enddate`
         if [ $? -ne 0 ]; then
-            1>&2 echo "${_crt} is not an X.509 certificate."
+            1>&2 echo "${f} is not an X.509 certificate."
         fi
-        _info=`echo "$_info" |                                          \
-            sed -e "s/^SHA256 Fingerprint=/id: /"                        \
-                    -e "2i${_indent}File: ${_crt}"                        \
-                    -e "s/^issuer=\s*/${_indent}Authority: /"              \
-                    -e "s/^notAfter=\s*/${_indent}Expires: /"`
-        echo "$_info"
+        info=`echo "$info" |                                          \
+            sed -e "s/^SHA256 Fingerprint=/id: /"                      \
+                    -e "2i${indent}File: ${f}"                          \
+                    -e "s/^issuer=\s*/${indent}Authority: /"             \
+                    -e "s/^notAfter=\s*/${indent}Expires: /"`
+        echo "$info"
     done
 
     return 0
@@ -317,13 +317,13 @@ EOF
 }
 
 function cmd_remove {
-    local _files
-    local _ids
-    local _err_pipe
-    local _out_pipe
-    local _invld_files
-    local _certs
-    local _opt_force
+    local files
+    local ids
+    local err_pipe
+    local out_pipe
+    local invld_files
+    local certs
+    local opt_force
     while [ $# -gt 0 ]; do
         case $1 in
             -h|--help)
@@ -332,70 +332,68 @@ function cmd_remove {
                 ;;                    
             -f|--force)
                 # TODO: implement forcing
-                _opt_force=1
+                opt_force=1
                 true
                 ;;
             *)
                 if [ -f "$1" ]; then
                     # need newline as a separator in case filename comes with
                     # spaces. first empty line will be deleted later.
-                    _files="$_files
+                    files="$files
 $1"
                 else
-                    _ids="$_ids $1"
+                    ids="$ids $1"
                 fi
                 ;;
         esac
         shift
     done
 
-    _err_pipe=`mktemp -u`
-    _out_pipe=`mktemp -u`
-    mkfifo $_err_pipe
-    mkfifo $_out_pipe
-    _files=`echo "$_files" | sed -e '1d'`
-    test ! -z "$_files" && echo "$_files" | while read _crt; do
-        finger=`openssl x509 -in "$_crt" -noout -fingerprint -sha256 2>/dev/null`
+    err_pipe=`mktemp -u`
+    out_pipe=`mktemp -u`
+    mkfifo $err_pipe
+    mkfifo $out_pipe
+    files=`echo "$files" | sed -e '1d'`
+    test ! -z "$files" && echo "$files" | while read f; do
+        finger=`openssl x509 -in "${f}" -noout -fingerprint -sha256 2>/dev/null`
         if [ $? -ne 0 ]; then
-            echo $_crt >>$_err_pipe &
-            echo "$_crt is not an X.509 certificate"
+            echo "${f}" >$err_pipe &
             continue
         fi
-        echo "${_crt}	${finger}" | sed -e 's/\tSHA256 Fingerprint=/\t/' >>$_out_pipe &
-    done
-    echo >>$_out_pipe &
-    echo >>$_err_pipe &
-    _invld_files=`cat $_err_pipe`
-    if [ ! -z $_invld_files ]; then
-        echo $_invld_files
+        echo "${crt}	${finger}" | sed -e 's/\tSHA256 Fingerprint=/\t/'
+    done >$out_pipe &
+    echo >$err_pipe &
+    invld_files=`cat $err_pipe`
+    if [ ! -z "$invld_files" ]; then
+        # FIXME: handle
+        echo "$invld_files"
     fi
-    _files=`cat $_out_pipe`
-    _ids=`echo $_ids && (echo "$_files" | cut -f 2)`
-    _certs=`find_all_certs`
-    for _id in $_ids; do
-        f=`echo "$_certs" | grep $_id`
+    files=`cat $out_pipe`
+    ids=`echo $ids && (echo "$files" | cut -f 2)`
+    certs=`find_all_certs`
+    for id in $ids; do
+        f=`echo "$certs" | grep $id`
         if [ $? -eq 0 ]; then
-            echo "$f" | cut -f 1 >>$_out_pipe &
+            echo "$f" | cut -f 1
         else
-            f=`echo "$_files" | grep $_id | cut -f 1`
+            f=`echo "$files" | grep $id | cut -f 1`
             if [ -z $f ]; then
-                1>&2 echo "Certificate id $_id not found."
+                1>&2 echo "Certificate id $id not found."
             else
-                1>&2 echo "Certificate id $_id not found (file: $f)."
+                1>&2 echo "Certificate id $id not found (file: $f)."
             fi
         fi
-    done
-    echo >>$_out_pipe &
-    _files=`cat $_out_pipe`
-    if [ ! -z "$_files" ]; then
-        echo "$_files" | while read f; do
+    done >$out_pipe &
+    files=`cat $out_pipe`
+    if [ ! -z "$files" ]; then
+        echo "$files" | while read f; do
             rm $f
         done
         cmd_generate
     else 
         echo "Nothing to do."
     fi
-    rm $_err_pipe $_out_pipe
+    rm $err_pipe $out_pipe
     return 0
 }
 
@@ -418,7 +416,7 @@ EOF
 ##### GLOBAL VARS/OPTIONS
 VERBOSE=0
 COMMAND=""
-BASENAME=`basename $0`
+BASENAME=`basename $0` # this may not work, but we don't care too much
 ARGS=$*
 
 while [ $# -gt 0 ]; do
