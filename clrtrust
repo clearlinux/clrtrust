@@ -20,9 +20,16 @@ function has_openssl {
     return 0
 }
 
+# takes cert file as a single argument
+# returns 0 if root ca, 1 otherwise
 function is_root_ca {
-    # FIXME: implement
-    return 1
+    # if issuer and subject match, then it's a self-signed certificate, the only
+    # indication of a Root CA we need to take into account (X.509v3 extensions
+    # are not)
+    t=`openssl x509 -in $1 -noout -issuer -subject 2>/dev/null      \
+            | sed -e 's/^\(issuer\|subject\)=//' | uniq | wc -l`
+    test $t -eq 1
+    return $?
 }
 
 function is_number {
@@ -208,10 +215,10 @@ $1"
             continue
         fi
         finger=`echo $finger | sed -e 's/^SHA256 Fingerprint=//'`
-        is_root_ca
-        if [ $? -ne 1 ]; then
+        is_root_ca "$f"
+        if [ $? -ne 0 ]; then
             cat <<EOF
-Certificate $f is not a Root CA. Not adding intermediates.
+Certificate $f is not a Root CA. Not adding intermediates or leaves.
 EOF
             continue
         fi
