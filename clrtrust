@@ -394,7 +394,11 @@ $1"
     files=`cat $out_pipe`
     if [ ! -z "$files" ]; then
         echo "$files" | while read f; do
-            rm $f
+            if [ `dirname $f` = $CLR_CLEAR_TRUST_SRC/trusted ]; then
+                cp $f $CLR_LOCAL_TRUST_SRC/distrusted
+            else
+                rm $f
+            fi
         done
         cmd_generate
     else
