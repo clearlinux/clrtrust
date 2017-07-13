@@ -116,7 +116,7 @@ function cmd_generate {
     done
     # find all the certificates
     ca_certs=`find_all_certs`
-    
+
     # handle the duplicates
     dup_certs=`echo "${ca_certs}" | cut -f 2 | sort | uniq -D`
     echo "$dup_certs"
@@ -250,7 +250,7 @@ EOF
     rm $err_pipe $tmp
     return $ret
 }
- 
+
 function print_list_help {
     cat <<EOF
 Usage: ${BASENAME} list
@@ -336,7 +336,7 @@ function cmd_remove {
             -h|--help)
                 print_remove_help
                 return 0
-                ;;                    
+                ;;
             -f|--force)
                 # TODO: implement forcing
                 opt_force=1
@@ -397,7 +397,7 @@ $1"
             rm $f
         done
         cmd_generate
-    else 
+    else
         echo "Nothing to do."
     fi
     rm $err_pipe $out_pipe
