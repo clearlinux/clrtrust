@@ -289,7 +289,7 @@ function cmd_list {
         return 128
     fi
     certs=`find ${CLR_TRUST_STORE}/anchors -maxdepth 1 -type f | LC_COLLATE=C sort`
-    if [ -z ${certs} ]; then
+    if [ -z "${certs}" ]; then
         test ! -z $VERBOSE && echo "Nothing is trusted. No anchors found in ${CLR_TRUST_STORE}."
         return 0
     fi
