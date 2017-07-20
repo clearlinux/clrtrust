@@ -3,7 +3,7 @@
 
 ##### HEALTH CHECKS
 
-function is_root {
+is_root() {
     if [ $UID -ne 0 ]; then
         1>&2 echo "Must be root to execute the command."
         return 127
@@ -11,7 +11,7 @@ function is_root {
     return 0
 }
 
-function has_openssl {
+has_openssl() {
     command -v openssl >/dev/null 2>&1
     if [ $? -ne 0 ]; then
         1>&2 echo "openssl is required, but not found."
@@ -22,7 +22,7 @@ function has_openssl {
 
 # takes cert file as a single argument
 # returns 0 if root ca, 1 otherwise
-function is_root_ca {
+is_root_ca() {
     # if issuer and subject match, then it's a self-signed certificate, the only
     # indication of a Root CA we need to take into account (X.509v3 extensions
     # are not)
@@ -32,7 +32,7 @@ function is_root_ca {
     return $?
 }
 
-function is_number {
+is_number() {
     case $1 in
         ''|*[!0-9]*) # not a number, return
             return 0
@@ -59,7 +59,7 @@ CLR_CLEAR_TRUST_SRC=${CLR_CLEAR_TRUST_SRC:-/usr/share/ca-certs}
 # the caller should grab the stdout of the call, it will contain found cert info
 # in form of:
 # <file name>\t<sha-256 fingerprint>
-function find_certs {
+find_certs() {
     local dir
     dir=$1
     if [ -z $dir ]; then return 255; fi
@@ -77,12 +77,12 @@ function find_certs {
     return 0
 }
 
-function find_all_certs {
+find_all_certs() {
     find_certs $CLR_CLEAR_TRUST_SRC/trusted
     find_certs $CLR_LOCAL_TRUST_SRC/trusted
 }
 
-function print_generate_help {
+print_generate_help() {
     cat <<EOF
 Usage: ${BASENAME} generate
 
@@ -95,7 +95,7 @@ Usage: ${BASENAME} generate
 EOF
 }
 
-function cmd_generate {
+cmd_generate() {
     local ca_certs
     local dup_certs
     local distrust_certs
@@ -163,7 +163,7 @@ function cmd_generate {
     return 0
 }
 
-function print_add_help {
+print_add_help() {
     cat <<EOF
 Usage: ${BASENAME} add <file>
 
@@ -171,7 +171,7 @@ Usage: ${BASENAME} add <file>
 EOF
 }
 
-function cmd_add {
+cmd_add() {
     local files
     local ret
     local ca_certs
@@ -251,7 +251,7 @@ EOF
     return $ret
 }
 
-function print_list_help {
+print_list_help() {
     cat <<EOF
 Usage: ${BASENAME} list
 
@@ -263,7 +263,7 @@ Usage: ${BASENAME} list
 EOF
 }
 
-function cmd_list {
+cmd_list() {
     local certs
     local info
     local indent
@@ -310,7 +310,7 @@ function cmd_list {
     return 0
 }
 
-function print_remove_help {
+print_remove_help() {
     cat <<EOF
 Usage: ${BASENAME} remove [-f|--force] [filename|id]...
 
@@ -323,7 +323,7 @@ Usage: ${BASENAME} remove [-f|--force] [filename|id]...
 EOF
 }
 
-function cmd_remove {
+cmd_remove() {
     local files
     local ids
     local err_pipe
@@ -408,7 +408,7 @@ $1"
     return 0
 }
 
-function print_help {
+print_help() {
     cat <<EOF
 Usage: ${BASENAME} [-v|--verbose] [-h|--help] <command> [options]
 
