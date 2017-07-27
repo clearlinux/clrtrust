@@ -12,8 +12,7 @@ is_root() {
 }
 
 has_openssl() {
-    command -v openssl >/dev/null 2>&1
-    if [ $? -ne 0 ]; then
+    if command -v openssl >/dev/null 2>&1; then
         1>&2 echo "openssl is required, but not found."
         return 127
     fi
@@ -29,7 +28,6 @@ is_root_ca() {
     t=`openssl x509 -in $1 -noout -issuer -subject 2>/dev/null      \
             | sed -e 's/^\(issuer\|subject\)=//' | uniq | wc -l`
     test $t -eq 1
-    return $?
 }
 
 is_number() {
@@ -70,9 +68,8 @@ find_certs() {
             1>&2 echo "ERROR: file ${f} is not a certificate"
             continue
         fi
-        finger=`echo $finger | sed -e 's/^SHA256 Fingerprint=//'`
-        # NB: BEWARE: literal tab char in the string below
-        echo "${f}	${finger}"
+        finger=${finger#SHA256 Fingerprint=}
+        printf "%s\t%s\n" "${f}" "${finger}"
     done
     return 0
 }
@@ -102,24 +99,23 @@ cmd_generate() {
     local ca_certs_cnt
     local distrust_certs_cnt
 
-    while [ $# -gt 0 ]; do
-        case $1 in
-            -h|--help)
-                print_generate_help
-                return 0
-                ;;
-            *)
-                print_generate_help
-                return 1
-                ;;
-        esac
-    done
+    case "$#:$1" in
+        0:)
+            ;;
+        -h|--help)
+            print_generate_help
+            return 0
+            ;;
+        *)
+            print_generate_help
+            return 1
+            ;;
+    esac
     # find all the certificates
     ca_certs=`find_all_certs`
 
     # handle the duplicates
     dup_certs=`echo "${ca_certs}" | cut -f 2 | sort | uniq -D`
-    echo "$dup_certs"
     if [ ! -z "$dup_certs" ]; then
         #FIXME: remove dups, warn
         true
@@ -139,12 +135,11 @@ cmd_generate() {
     # write the store
     umask 022
 
-    CLR_STORE_STAGE=`mktemp -u`
-    mkdir $CLR_STORE_STAGE
-    mkdir $CLR_STORE_STAGE/anchors
-    mkdir $CLR_STORE_STAGE/compat
+    CLR_STORE_STAGE=`mktemp -d`
+    mkdir -p $CLR_STORE_STAGE/anchors
+    mkdir -p $CLR_STORE_STAGE/compat
 
-    echo "${ca_certs}" | cut -f 1 | xargs -I '{}' cp '{}' $CLR_STORE_STAGE/anchors
+    echo "${ca_certs}" | cut -f 1 | xargs cp -t $CLR_STORE_STAGE/anchors
 
     pushd $CLR_STORE_STAGE/anchors >/dev/null
     c_rehash . >/dev/null 2>&1
@@ -450,12 +445,6 @@ while [ $# -gt 0 ]; do
     fi
 done
 
-if [ -z $COMMAND ]; then
-    1>&2 echo Command not understood: $ARGS
-    print_help
-    exit 128
-fi
-
 case $COMMAND in
     generate|add|remove|restore)
         # must be root if writing to the default location
@@ -488,6 +477,13 @@ case $COMMAND in
     restore|check)
         1>&2 echo "$COMMAND not yet supported."
         exit 1
+        ;;
+    *)
+        if [ ! -z $COMMAND ]; then
+            1>&2 echo "Command not understood: $COMMAND"
+        fi
+        print_help
+        exit 128
         ;;
 esac
 
