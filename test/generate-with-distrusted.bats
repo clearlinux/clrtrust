@@ -13,10 +13,10 @@ setup() {
 
 @test "generate store, source both Clear and local, local distrust" {
     $CLRTRUST generate
-    cnt=`ls $STORE/anchors | wc -l`
+    cnt=$(ls $STORE/anchors | wc -l)
     [ ! -f $STORE/anchors/c2.pem ]
     [ $cnt -eq 6 ]
-    cnt=`$CLRTRUST list | grep ^id | wc -l`
+    cnt=$($CLRTRUST list | grep ^id | wc -l)
     [ $cnt -eq 3 ]
 }
 

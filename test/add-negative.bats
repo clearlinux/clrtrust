@@ -10,7 +10,7 @@ setup() {
 
 @test "generate empty store, add certificate" {
     $CLRTRUST generate
-    cnt=`ls $STORE/anchors | wc -l`
+    cnt=$(ls $STORE/anchors | wc -l)
     [ $cnt -eq 0 ]
     run $CLRTRUST list
     [ $status -eq 0 ]
@@ -32,7 +32,7 @@ setup() {
     [ $status -eq 0 ]
     run $CLRTRUST list
     [ $status -eq 0 ]
-    cnt=`echo "$output" | grep ^id | wc -l`
+    cnt=$(echo "$output" | grep ^id | wc -l)
     [ $cnt -eq 1 ]
 }
 

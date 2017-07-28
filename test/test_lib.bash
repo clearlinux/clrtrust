@@ -2,15 +2,15 @@
 
 function find_clrtrust {
     if [ -x $BATS_TEST_DIRNAME/../clrtrust ]; then
-        CLRTRUST=`realpath $BATS_TEST_DIRNAME/../clrtrust`
+        CLRTRUST=$(realpath $BATS_TEST_DIRNAME/../clrtrust)
     else
         return 1
     fi
 }
 
 function setup_fs {
-    SOURCES=`mktemp -d`
-    STORE=`mktemp -d`
+    SOURCES=$(mktemp -d)
+    STORE=$(mktemp -d)
     CERTS=$BATS_TEST_DIRNAME/certs
     mkdir -p $SOURCES/etc/ca-certs/trusted
     mkdir -p $SOURCES/etc/ca-certs/distrusted

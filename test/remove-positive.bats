@@ -13,9 +13,9 @@ setup() {
 @test "generate store, source both Clear and local" {
     run $CLRTRUST generate
     [ $status -eq 0 ]
-    cnt=`ls $STORE/anchors | wc -l`
+    cnt=$(ls $STORE/anchors | wc -l)
     [ $cnt -eq 8 ]
-    cnt=`$CLRTRUST list | grep ^id | wc -l`
+    cnt=$($CLRTRUST list | grep ^id | wc -l)
     [ $cnt -eq 4 ]
     # removing a Clear-provided CA should "distrust" it, not remove
     [ -f $CLR_TRUST_STORE/anchors/c1.pem ]

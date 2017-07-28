@@ -11,9 +11,9 @@ setup() {
 
 @test "generate store, all local" {
     $CLRTRUST generate
-    cnt=`ls $STORE/anchors | wc -l`
+    cnt=$(ls $STORE/anchors | wc -l)
     [ $cnt -eq 8 ]
-    cnt=`$CLRTRUST list | grep ^id | wc -l`
+    cnt=$($CLRTRUST list | grep ^id | wc -l)
     [ $cnt -eq 4 ]
 }
 
