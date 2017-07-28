@@ -141,13 +141,10 @@ cmd_generate() {
 
     echo "${ca_certs}" | cut -f 1 | xargs cp -t $CLR_STORE_STAGE/anchors
 
-    pushd $CLR_STORE_STAGE/anchors >/dev/null
-    c_rehash . >/dev/null 2>&1
-    if [ $? -ne 0 ]; then
+    if ! (cd $CLR_STORE_STAGE/anchors && c_rehash . >/dev/null 2>&1); then
         1>&2 echo "Error rehashing the anchors."
         exit 1
     fi
-    popd >/dev/null
 
     TMP=$(mktemp -u)
     mv $CLR_TRUST_STORE $TMP
