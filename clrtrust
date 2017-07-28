@@ -12,7 +12,7 @@ is_root() {
 }
 
 has_openssl() {
-    if command -v openssl >/dev/null 2>&1; then
+    if ! command -v openssl >/dev/null 2>&1; then
         1>&2 echo "openssl is required, but not found."
         return 127
     fi
@@ -422,6 +422,10 @@ VERBOSE=
 COMMAND=""
 BASENAME=$(basename $0) # this may not work, but we don't care too much
 ARGS=$*
+
+if ! has_openssl; then
+    exit 127
+fi
 
 while [ $# -gt 0 ]; do
     opt=$1
