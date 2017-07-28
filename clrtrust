@@ -25,8 +25,8 @@ is_root_ca() {
     # if issuer and subject match, then it's a self-signed certificate, the only
     # indication of a Root CA we need to take into account (X.509v3 extensions
     # are not)
-    t=`openssl x509 -in $1 -noout -issuer -subject 2>/dev/null      \
-            | sed -e 's/^\(issuer\|subject\)=//' | uniq | wc -l`
+    t=$(openssl x509 -in $1 -noout -issuer -subject 2>/dev/null      \
+            | sed -e 's/^\(issuer\|subject\)=//' | uniq | wc -l)
     test $t -eq 1
 }
 
@@ -63,7 +63,7 @@ find_certs() {
     if [ -z $dir ]; then return 255; fi
     if [ ! -d $dir ]; then return 255; fi
     find $dir -maxdepth 1 -type f | while read f; do
-        finger=`openssl x509 -in "${f}" -noout -fingerprint -sha256 2>/dev/null`
+        finger=$(openssl x509 -in "${f}" -noout -fingerprint -sha256 2>/dev/null)
         if [ $? -ne 0 ]; then
             1>&2 echo "ERROR: file ${f} is not a certificate"
             continue
@@ -112,30 +112,30 @@ cmd_generate() {
             ;;
     esac
     # find all the certificates
-    ca_certs=`find_all_certs`
+    ca_certs=$(find_all_certs)
 
     # handle the duplicates
-    dup_certs=`echo "${ca_certs}" | cut -f 2 | sort | uniq -D`
+    dup_certs=$(echo "${ca_certs}" | cut -f 2 | sort | uniq -D)
     if [ ! -z "$dup_certs" ]; then
         #FIXME: remove dups, warn
         true
     fi
 
     # remove the distrusted ones
-    distrust_certs=`find_certs $CLR_LOCAL_TRUST_SRC/distrusted`
-    ca_certs_cnt=`echo "$ca_certs" | wc -l`
-    distrust_certs_cnt=`echo "$distrust_certs" | wc -l`
+    distrust_certs=$(find_certs $CLR_LOCAL_TRUST_SRC/distrusted)
+    ca_certs_cnt=$(echo "$ca_certs" | wc -l)
+    distrust_certs_cnt=$(echo "$distrust_certs" | wc -l)
     if [ $distrust_certs_cnt -gt 0 ]; then
         echo "Distrusting $distrust_certs_cnt certificate(s)."
-        for h in `echo "$distrust_certs" | cut -f 2`; do
-            ca_certs=`echo "$ca_certs" | grep -v $h`
+        for h in $(echo "$distrust_certs" | cut -f 2); do
+            ca_certs=$(echo "$ca_certs" | grep -v $h)
         done
     fi
 
     # write the store
     umask 022
 
-    CLR_STORE_STAGE=`mktemp -d`
+    CLR_STORE_STAGE=$(mktemp -d)
     mkdir -p $CLR_STORE_STAGE/anchors
     mkdir -p $CLR_STORE_STAGE/compat
 
@@ -149,7 +149,7 @@ cmd_generate() {
     fi
     popd >/dev/null
 
-    TMP=`mktemp -u`
+    TMP=$(mktemp -u)
     mv $CLR_TRUST_STORE $TMP
     mv $CLR_STORE_STAGE $CLR_TRUST_STORE
     rm -rf $TMP
@@ -191,10 +191,10 @@ $1"
         print_add_help
         return 128
     fi
-    files=`echo "$files" | sed -e '1d'`
-    ca_certs=`find_all_certs`
-    err_pipe=`mktemp -u`
-    tmp=`mktemp`
+    files=$(echo "$files" | sed -e '1d')
+    ca_certs=$(find_all_certs)
+    err_pipe=$(mktemp -u)
+    tmp=$(mktemp)
     mkfifo $err_pipe
     echo "$files" | while read f; do
         if [ ! -f "$f" ]; then
@@ -203,13 +203,13 @@ $1"
             # TODO: get the file, assign it to files
             continue
         fi
-        finger=`openssl x509 -in "${f}" -noout -fingerprint -sha256 2>$tmp`
+        finger=$(openssl x509 -in "${f}" -noout -fingerprint -sha256 2>$tmp)
         if [ $? -ne 0 ]; then
             echo "$f is not an X.509 certificate."
             cat $tmp
             continue
         fi
-        finger=`echo $finger | sed -e 's/^SHA256 Fingerprint=//'`
+        finger=$(echo $finger | sed -e 's/^SHA256 Fingerprint=//')
         is_root_ca "$f"
         if [ $? -ne 0 ]; then
             cat <<EOF
@@ -224,7 +224,7 @@ Certificate $f is already trusted. Not adding duplicates.
 EOF
             continue
         fi
-        fname=`basename $f`
+        fname=$(basename $f)
         if [ -f $CLR_LOCAL_TRUST_SRC/trusted/$fname ]; then
             # FIXME: it's not a duplicate, should really not be picky about file
             # names.
@@ -232,7 +232,7 @@ EOF
             continue
         fi
     done >$err_pipe &
-    out=`cat $err_pipe`
+    out=$(cat $err_pipe)
     if [ -z "$out" ]; then
         echo "$files" | while read f; do
             cp "${f}" $CLR_LOCAL_TRUST_SRC/trusted
@@ -283,22 +283,22 @@ cmd_list() {
             " Use ${BASENAME} generate to create the store."
         return 128
     fi
-    certs=`find ${CLR_TRUST_STORE}/anchors -maxdepth 1 -type f | LC_COLLATE=C sort`
+    certs=$(find ${CLR_TRUST_STORE}/anchors -maxdepth 1 -type f | LC_COLLATE=C sort)
     if [ -z "${certs}" ]; then
         test ! -z $VERBOSE && echo "Nothing is trusted. No anchors found in ${CLR_TRUST_STORE}."
         return 0
     fi
 
     echo "$certs" | while read f; do
-        info=`openssl x509 -in "${f}" -noout -fingerprint -sha256 -issuer -enddate`
+        info=$(openssl x509 -in "${f}" -noout -fingerprint -sha256 -issuer -enddate)
         if [ $? -ne 0 ]; then
             1>&2 echo "${f} is not an X.509 certificate."
         fi
-        info=`echo "$info" |                                          \
+        info=$(echo "$info" |                                          \
             sed -e "s/^SHA256 Fingerprint=/id: /"                      \
                     -e "2i${indent}File: ${f}"                          \
                     -e "s/^issuer=\s*/${indent}Authority: /"             \
-                    -e "s/^notAfter=\s*/${indent}Expires: /"`
+                    -e "s/^notAfter=\s*/${indent}Expires: /")
         echo "$info"
     done
 
@@ -351,13 +351,13 @@ $1"
         shift
     done
 
-    err_pipe=`mktemp -u`
-    out_pipe=`mktemp -u`
+    err_pipe=$(mktemp -u)
+    out_pipe=$(mktemp -u)
     mkfifo $err_pipe
     mkfifo $out_pipe
-    files=`echo "$files" | sed -e '1d'`
+    files=$(echo "$files" | sed -e '1d')
     test ! -z "$files" && echo "$files" | while read f; do
-        finger=`openssl x509 -in "${f}" -noout -fingerprint -sha256 2>/dev/null`
+        finger=$(openssl x509 -in "${f}" -noout -fingerprint -sha256 2>/dev/null)
         if [ $? -ne 0 ]; then
             echo "${f}" >$err_pipe &
             continue
@@ -365,20 +365,20 @@ $1"
         echo "${crt}	${finger}" | sed -e 's/\tSHA256 Fingerprint=/\t/'
     done >$out_pipe &
     echo >$err_pipe &
-    invld_files=`cat $err_pipe`
+    invld_files=$(cat $err_pipe)
     if [ ! -z "$invld_files" ]; then
         # FIXME: handle
         echo "$invld_files"
     fi
-    files=`cat $out_pipe`
-    ids=`echo $ids && (echo "$files" | cut -f 2)`
-    certs=`find_all_certs`
+    files=$(cat $out_pipe)
+    ids=$(echo $ids && (echo "$files" | cut -f 2))
+    certs=$(find_all_certs)
     for id in $ids; do
-        f=`echo "$certs" | grep $id`
+        f=$(echo "$certs" | grep $id)
         if [ $? -eq 0 ]; then
             echo "$f" | cut -f 1
         else
-            f=`echo "$files" | grep $id | cut -f 1`
+            f=$(echo "$files" | grep $id | cut -f 1)
             if [ -z $f ]; then
                 1>&2 echo "Certificate id $id not found."
             else
@@ -386,10 +386,10 @@ $1"
             fi
         fi
     done >$out_pipe &
-    files=`cat $out_pipe`
+    files=$(cat $out_pipe)
     if [ ! -z "$files" ]; then
         echo "$files" | while read f; do
-            if [ `dirname $f` = $CLR_CLEAR_TRUST_SRC/trusted ]; then
+            if [ $(dirname $f) = $CLR_CLEAR_TRUST_SRC/trusted ]; then
                 cp $f $CLR_LOCAL_TRUST_SRC/distrusted
             else
                 rm $f
@@ -422,7 +422,7 @@ EOF
 ##### GLOBAL VARS/OPTIONS
 VERBOSE=0
 COMMAND=""
-BASENAME=`basename $0` # this may not work, but we don't care too much
+BASENAME=$(basename $0) # this may not work, but we don't care too much
 ARGS=$*
 
 while [ $# -gt 0 ]; do
