@@ -167,7 +167,7 @@ cmd_add() {
     local files
     local ret
     local ca_certs
-    local err_pipe
+    local err
     local tmp
     while [ $# -gt 0 ]; do
         case $1 in
@@ -190,9 +190,8 @@ $1"
     fi
     files=$(echo "$files" | sed -e '1d')
     ca_certs=$(find_all_certs)
-    err_pipe=$(mktemp -u)
+    err=$(mktemp)
     tmp=$(mktemp)
-    mkfifo $err_pipe
     echo "$files" | while read f; do
         if [ ! -f "$f" ]; then
             echo "No such file $f."
@@ -228,8 +227,8 @@ EOF
             echo "File $fname already exists."
             continue
         fi
-    done >$err_pipe &
-    out=$(cat $err_pipe)
+    done >$err
+    out=$(cat $err)
     if [ -z "$out" ]; then
         echo "$files" | while read f; do
             cp "${f}" $CLR_LOCAL_TRUST_SRC/trusted
@@ -239,7 +238,7 @@ EOF
         ret=128
         1>&2 echo "$out"
     fi
-    rm $err_pipe $tmp
+    rm $err $tmp
     return $ret
 }
 
@@ -318,8 +317,8 @@ EOF
 cmd_remove() {
     local files
     local ids
-    local err_pipe
-    local out_pipe
+    local err
+    local out
     local invld_files
     local certs
     local opt_force
@@ -348,27 +347,24 @@ $1"
         shift
     done
 
-    err_pipe=$(mktemp -u)
-    out_pipe=$(mktemp -u)
-    mkfifo $err_pipe
-    mkfifo $out_pipe
+    err=$(mktemp)
+    out=$(mktemp)
     files=$(echo "$files" | sed -e '1d')
     test ! -z "$files" && echo "$files" | while read f; do
         finger=$(openssl x509 -in "${f}" -noout -fingerprint -sha256 2>/dev/null)
         finger=${finger#SHA256 Fingerprint=}
         if [ $? -ne 0 ]; then
-            echo "${f}" >$err_pipe &
+            echo "${f}" >>$err &
             continue
         fi
         printf "%s\t%s\n" "${crt}" "${finger}"
-    done >$out_pipe &
-    echo >$err_pipe &
-    invld_files=$(cat $err_pipe)
+    done >$out
+    invld_files=$(cat $err)
     if [ ! -z "$invld_files" ]; then
         # FIXME: handle
         echo "$invld_files"
     fi
-    files=$(cat $out_pipe)
+    files=$(cat $out)
     ids=$(echo $ids && (echo "$files" | cut -f 2))
     certs=$(find_all_certs)
     for id in $ids; do
@@ -383,8 +379,8 @@ $1"
                 1>&2 echo "Certificate id $id not found (file: $f)."
             fi
         fi
-    done >$out_pipe &
-    files=$(cat $out_pipe)
+    done >$out
+    files=$(cat $out)
     if [ ! -z "$files" ]; then
         echo "$files" | while read f; do
             if [ $(dirname $f) = $CLR_CLEAR_TRUST_SRC/trusted ]; then
@@ -397,7 +393,7 @@ $1"
     else
         echo "Nothing to do."
     fi
-    rm $err_pipe $out_pipe
+    rm $err $out
     return 0
 }
 
