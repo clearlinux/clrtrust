@@ -1,0 +1,2 @@
+-----BEGIN CERTIFICATE-----
+Hi! I am a sophisticated non-certificate text.

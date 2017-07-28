@@ -8,7 +8,7 @@ setup() {
     setup_fs
 }
 
-@test "generate empty store, add certificate" {
+@test "generate empty store, fail to add certificates" {
     $CLRTRUST generate
     cnt=$(ls $STORE/anchors | wc -l)
     [ $cnt -eq 0 ]
@@ -23,6 +23,12 @@ setup() {
     [ -z "$output" ]
     # try adding leaf certificate
     run $CLRTRUST add $CERTS/bad/leaf.pem
+    [ $status -eq 128 ]
+    run $CLRTRUST list
+    [ $status -eq 0 ]
+    [ -z "$output" ]
+    # try adding non-certificate
+    run $CLRTRUST add $CERTS/bad/non-cert.txt
     [ $status -eq 128 ]
     run $CLRTRUST list
     [ $status -eq 0 ]
