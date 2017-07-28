@@ -27,7 +27,7 @@ function remove_fs {
     unset CLR_LOCAL_TRUST_SRC
     unset CLR_CLEAR_TRUST_SRC
     rm -rf $SOURCES
-    # rm -rf $STORE
+    rm -rf $STORE
 }
 
 # vim: ft=sh:sw=4:ts=4:et:tw=80:ai
