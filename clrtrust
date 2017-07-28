@@ -358,11 +358,12 @@ $1"
     files=$(echo "$files" | sed -e '1d')
     test ! -z "$files" && echo "$files" | while read f; do
         finger=$(openssl x509 -in "${f}" -noout -fingerprint -sha256 2>/dev/null)
+        finger=${finger#SHA256 Fingerprint=}
         if [ $? -ne 0 ]; then
             echo "${f}" >$err_pipe &
             continue
         fi
-        echo "${crt}	${finger}" | sed -e 's/\tSHA256 Fingerprint=/\t/'
+        printf "%s\t%s\n" "${crt}" "${finger}"
     done >$out_pipe &
     echo >$err_pipe &
     invld_files=$(cat $err_pipe)
