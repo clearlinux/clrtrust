@@ -420,7 +420,7 @@ EOF
 }
 
 ##### GLOBAL VARS/OPTIONS
-VERBOSE=0
+VERBOSE=
 COMMAND=""
 BASENAME=$(basename $0) # this may not work, but we don't care too much
 ARGS=$*

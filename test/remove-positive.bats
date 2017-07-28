@@ -19,13 +19,12 @@ setup() {
     [ $cnt -eq 4 ]
     # removing a Clear-provided CA should "distrust" it, not remove
     [ -f $CLR_TRUST_STORE/anchors/c1.pem ]
-    run $CLRTRUST remove $CERTS/c1.pem
-    [ $status -eq 0 ]
+    $CLRTRUST remove $CERTS/c1.pem
     [ -f $CLR_LOCAL_TRUST_SRC/distrusted/c1.pem ]
     [ ! -f $CLR_TRUST_STORE/anchors/c1.pem ]
     # removing a locally provided CA should wipe it out from the trust store
     [ -f $CLR_TRUST_STORE/anchors/c3.pem ]
-    run $CLRTRUST remove $CERTS/c3.pem
+    $CLRTRUST remove $CERTS/c3.pem
     [ ! -f $CLR_LOCAL_TRUST_SRC/trusted/c3.pem ]
     [ ! -f $CLR_TRUST_STORE/anchors/c3.pem ]
 }

@@ -9,29 +9,29 @@ setup() {
 }
 
 @test "generate empty store, add certificate" {
-    run $CLRTRUST generate
+    $CLRTRUST generate
     cnt=`ls $STORE/anchors | wc -l`
     [ $cnt -eq 0 ]
     run $CLRTRUST list
     [ $status -eq 0 ]
-    cnt=`$CLRTRUST list | grep ^id | wc -l`
-    [ $cnt -eq 0 ]
+    [ -z "$output" ]
     # try adding intermediate CA
     run $CLRTRUST add $CERTS/bad/intermediate.pem
     [ $status -eq 128 ]
     run $CLRTRUST list
-    cnt=`echo "$output"| grep ^id | wc -l`
-    [ $cnt -eq 0 ]
+    [ $status -eq 0 ]
+    [ -z "$output" ]
     # try adding leaf certificate
     run $CLRTRUST add $CERTS/bad/leaf.pem
     [ $status -eq 128 ]
     run $CLRTRUST list
-    cnt=`echo "$output" | grep ^id | wc -l`
-    [ $cnt -eq 0 ]
+    [ $status -eq 0 ]
+    [ -z "$output" ]
     # add acceptable CA
     run $CLRTRUST add $CERTS/c1.pem
     [ $status -eq 0 ]
     run $CLRTRUST list
+    [ $status -eq 0 ]
     cnt=`echo "$output" | grep ^id | wc -l`
     [ $cnt -eq 1 ]
 }
