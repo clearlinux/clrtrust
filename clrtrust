@@ -136,6 +136,7 @@ cmd_generate() {
     umask 022
 
     CLR_STORE_STAGE=$(mktemp -d)
+    chmod 755 $CLR_STORE_STAGE
     mkdir -p $CLR_STORE_STAGE/anchors
     mkdir -p $CLR_STORE_STAGE/compat
 
