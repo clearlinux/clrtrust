@@ -301,6 +301,21 @@ cmd_list() {
     return 0
 }
 
+print_check_help() {
+    true
+}
+
+cmd_check() {
+    if [ ! -e $CLR_LOCAL_TRUST_SRC/distrusted ]; then
+        mkdir $CLR_LOCAL_TRUST_SRC/distrusted
+    else
+        if [ ! -d $CLR_LOCAL_TRUST_SRC/distrusted ]; then
+            1>&2 echo "$CLR_LOCAL_TRUST_SRC/distrusted must be a directory"
+            return 2 # FATAL
+        fi
+    fi
+}
+
 print_remove_help() {
     cat <<EOF
 Usage: ${BASENAME} remove [-f|--force] [filename|id]...
@@ -347,6 +362,11 @@ $1"
         shift
     done
 
+    cmd_check()
+    if [ $? -eq 2 ]; then # FATAL, goodbye!
+        return 2
+    fi
+
     err=$(mktemp)
     out=$(mktemp)
     files=$(echo "$files" | sed -e '1d')
@@ -383,6 +403,7 @@ $1"
     files=$(cat $out)
     if [ ! -z "$files" ]; then
         echo "$files" | while read f; do
+            mkdir $CLR_LOCAL_TRUST_SRC/distrusted
             if [ $(dirname $f) = $CLR_CLEAR_TRUST_SRC/trusted ]; then
                 cp $f $CLR_LOCAL_TRUST_SRC/distrusted
             else
