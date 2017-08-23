@@ -124,8 +124,8 @@ cmd_generate() {
     # remove the distrusted ones
     distrust_certs=$(find_certs $CLR_LOCAL_TRUST_SRC/distrusted)
     ca_certs_cnt=$(echo "$ca_certs" | wc -l)
-    distrust_certs_cnt=$(echo "$distrust_certs" | wc -l)
-    if [ $distrust_certs_cnt -gt 0 ]; then
+    if [ ! -z "$distrust_certs" ]; then
+        distrust_certs_cnt=$(echo "$distrust_certs" | wc -l)
         echo "Distrusting $distrust_certs_cnt certificate(s)."
         for h in $(echo "$distrust_certs" | cut -f 2); do
             ca_certs=$(echo "$ca_certs" | grep -v $h)
@@ -168,7 +168,10 @@ cmd_add() {
     local files
     local ret
     local ca_certs
+    local out
+    local out_content
     local err
+    local err_content
     local tmp
     while [ $# -gt 0 ]; do
         case $1 in
@@ -191,7 +194,9 @@ $1"
     fi
     files=$(echo "$files" | sed -e '1d')
     ca_certs=$(find_all_certs)
+    distrusted_certs=$(find_certs $CLR_LOCAL_TRUST_SRC/distrusted)
     err=$(mktemp)
+    out=$(mktemp)
     tmp=$(mktemp)
     echo "$files" | while read f; do
         if [ ! -f "$f" ]; then
@@ -214,12 +219,19 @@ Certificate $f is not a Root CA. Not adding intermediates or leaves.
 EOF
             continue
         fi
-        echo "$ca_certs" | grep $finger >/dev/null 2>&1
+        echo "$ca_certs" | grep "$finger" >/dev/null 2>&1
         if [ $? -eq 0 ]; then
-            cat <<EOF
+            # if it's among trusted certs, then it may be distrusted
+            dcert=$(echo "$distrusted_certs" | grep $finger)
+            if [ $? -eq 0 ]; then
+                1>&2 echo -e "$f\t$finger"
+                continue
+            else
+                cat <<EOF
 Certificate $f is already trusted. Not adding duplicates.
 EOF
-            continue
+                continue
+            fi
         fi
         fname=$(basename $f)
         if [ -f $CLR_LOCAL_TRUST_SRC/trusted/$fname ]; then
@@ -228,18 +240,31 @@ EOF
             echo "File $fname already exists."
             continue
         fi
-    done >$err
-    out=$(cat $err)
-    if [ -z "$out" ]; then
+    done >$out 2>$err
+    out_content=$(cat $out)
+    if [ -z "$out_content" ]; then
+        err_content=$(cat $err)
         echo "$files" | while read f; do
-            cp "${f}" $CLR_LOCAL_TRUST_SRC/trusted
+            l=$(echo "$err_content" | grep "${f}")
+            if [ $? -ne 0 ]; then
+                cp "${f}" $CLR_LOCAL_TRUST_SRC/trusted
+            else
+                # lookup distrusted file in the source
+                l=$(echo "$l" | cut -f 2)
+                l=$(echo "$distrusted_certs" | grep "$l" | cut -f 1)
+                if [ -z $l ]; then
+                    1>&2 echo "Internal error: ${f} must be distrusted, but not found"
+                    continue
+                fi
+                rm "${l}"
+            fi
         done
         cmd_generate
     else
         ret=128
-        1>&2 echo "$out"
+        1>&2 echo "$out_content"
     fi
-    rm $err $tmp
+    rm $err $tmp $out
     return $ret
 }
 
@@ -404,7 +429,9 @@ $1"
     files=$(cat $out)
     if [ ! -z "$files" ]; then
         echo "$files" | while read f; do
-            mkdir $CLR_LOCAL_TRUST_SRC/distrusted
+            if [ ! -e $CLR_LOCAL_TRUST_SRC/distrusted ]; then
+                mkdir $CLR_LOCAL_TRUST_SRC/distrusted
+            fi
             if [ $(dirname $f) = $CLR_CLEAR_TRUST_SRC/trusted ]; then
                 cp $f $CLR_LOCAL_TRUST_SRC/distrusted
             else
