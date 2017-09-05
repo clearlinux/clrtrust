@@ -40,6 +40,18 @@ setup() {
     [ $status -eq 0 ]
     cnt=$(echo "$output" | grep ^id | wc -l)
     [ $cnt -eq 1 ]
+    # leaf can be forced
+    $CLRTRUST add --force $CERTS/bad/leaf.pem
+    run $CLRTRUST list
+    [ $status -eq 0 ]
+    cnt=$(echo "$output" | grep ^id | wc -l)
+    [ $cnt -eq 2 ]
+    # intermediate can be forced
+    $CLRTRUST add -f $CERTS/bad/intermediate.pem
+    run $CLRTRUST list
+    [ $status -eq 0 ]
+    cnt=$(echo "$output" | grep ^id | wc -l)
+    [ $cnt -eq 3 ]
 }
 
 teardown() {

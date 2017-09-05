@@ -173,11 +173,17 @@ cmd_add() {
     local err
     local err_content
     local tmp
+    local opt_force
+    opt_force=0
     while [ $# -gt 0 ]; do
         case $1 in
             -h|--help)
                 print_add_help
                 return 0
+                ;;
+            -f|--force)
+                opt_force=1
+                shift
                 ;;
             *)
                 # first empty line will be deleted few lines later
@@ -213,9 +219,9 @@ $1"
         fi
         finger=$(echo $finger | sed -e 's/^SHA256 Fingerprint=//')
         is_root_ca "$f"
-        if [ $? -ne 0 ]; then
+        if [ $opt_force -ne 1 -a $? -ne 0 ]; then
             cat <<EOF
-Certificate $f is not a Root CA. Not adding intermediates or leaves.
+Certificate $f is not a Root CA. Use --force and proper judgement to enforce.
 EOF
             continue
         fi
