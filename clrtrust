@@ -19,6 +19,14 @@ has_openssl() {
     return 0
 }
 
+has_p11kit() {
+    if ! command -v p11-kit >/dev/null 2>&1; then
+        1>&2 echo "p11-kit is required, but not found."
+        return 127
+    fi
+    return 0
+}
+
 # takes cert file as a single argument
 # returns 0 if root ca, 1 otherwise
 is_root_ca() {
@@ -151,6 +159,15 @@ cmd_generate() {
     mv $CLR_TRUST_STORE $TMP
     mv $CLR_STORE_STAGE $CLR_TRUST_STORE
     rm -rf $TMP
+
+    # generate the compat after the store is deployed: p11-kit is configured to
+    # look at the default location
+    p11-kit extract                 \
+            --filter=ca-anchors     \
+            --format=java-cacerts   \
+            --purpose=server-auth   \
+            $CLR_TRUST_STORE/compat/ca-roots.keystore
+    chmod 644 $CLR_TRUST_STORE/compat/ca-roots.keystore
 
     echo "Trust store generated at ${CLR_TRUST_STORE}"
     return 0
@@ -475,6 +492,10 @@ BASENAME=$(basename $0) # this may not work, but we don't care too much
 ARGS=$*
 
 if ! has_openssl; then
+    exit 127
+fi
+
+if ! has_p11kit; then
     exit 127
 fi
 
