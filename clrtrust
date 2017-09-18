@@ -105,7 +105,9 @@ cmd_generate() {
     local dup_certs
     local distrust_certs
     local ca_certs_cnt
+    local dup_certs_cnt
     local distrust_certs_cnt
+    local tmp
 
     case "$#:$1" in
         0:)
@@ -123,10 +125,16 @@ cmd_generate() {
     ca_certs=$(find_all_certs)
 
     # handle the duplicates
-    dup_certs=$(echo "${ca_certs}" | cut -f 2 | sort | uniq -D)
+    dup_certs=$(echo "${ca_certs}" | cut -f 2 | sort | uniq -d)
     if [ ! -z "$dup_certs" ]; then
-        #FIXME: remove dups, warn
-        true
+        dup_certs_cnt=$(echo "$dup_certs" | wc -l)
+        echo "$dup_certs_cnt certificate(s) are duplicated. Cleaning up..."
+        for h in "${dup_certs}"; do
+            tmp=$(echo "${ca_certs}" | grep $h | head -1)
+            ca_certs=$(echo "${ca_certs}" | grep -v $h)
+            ca_certs="${ca_certs}
+$tmp"
+        done
     fi
 
     # remove the distrusted ones
