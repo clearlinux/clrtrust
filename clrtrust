@@ -242,7 +242,7 @@ $1"
             cat $tmp
             continue
         fi
-        finger=$(echo $finger | sed -e 's/^SHA256 Fingerprint=//')
+        finger=${finger#SHA256 Fingerprint=}
         is_root_ca "$f"
         if [ $opt_force -ne 1 -a $? -ne 0 ]; then
             cat <<EOF
@@ -347,7 +347,7 @@ cmd_list() {
         if [ $? -ne 0 ]; then
             1>&2 echo "${f} is not an X.509 certificate."
         fi
-        info=$(echo "$info" |                                          \
+        info=$(echo "$info" |                                         \
             sed -e "s/^SHA256 Fingerprint=/id: /"                      \
                     -e "2i${indent}File: ${f}"                          \
                     -e "s/^issuer=\s*/${indent}Authority: /"             \
