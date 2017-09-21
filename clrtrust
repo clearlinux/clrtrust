@@ -177,6 +177,13 @@ $tmp"
             $CLR_TRUST_STORE/compat/ca-roots.keystore
     chmod 644 $CLR_TRUST_STORE/compat/ca-roots.keystore
 
+    p11-kit extract                 \
+            --filter=ca-anchors     \
+            --format=pem-bundle     \
+            --purpose=server-auth   \
+            $CLR_TRUST_STORE/compat/ca-roots.pem
+    chmod 644 $CLR_TRUST_STORE/compat/ca-roots.pem
+
     echo "Trust store generated at ${CLR_TRUST_STORE}"
     return 0
 }
