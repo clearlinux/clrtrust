@@ -70,7 +70,7 @@ find_certs() {
     find $dir -maxdepth 1 -type f | while read f; do
         finger=$(openssl x509 -in "${f}" -noout -fingerprint -sha1 2>/dev/null)
         if [ $? -ne 0 ]; then
-            1>&2 echo "ERROR: file ${f} is not a certificate"
+            1>&2 echo "WARNING: file ${f} is not a certificate"
             continue
         fi
         finger=${finger#SHA1 Fingerprint=}
@@ -86,9 +86,11 @@ find_all_certs() {
 
 print_generate_help() {
     cat <<EOF
-Usage: ${BASENAME} generate
+Usage: ${BASENAME} generate [-h|--help]
 
     This command does not take arguments.
+
+    -h | --help         Prints this help message and exits
 
     The store is generated from the following locations:
         ${CLR_CLEAR_TRUST_SRC}/trusted
@@ -163,7 +165,7 @@ $tmp"
 
     TMP=$(mktemp -u)
     if [ -e $CLR_TRUST_STORE ]; then
-        mv $CLR_TRUST_STORE $TMP
+        mv -f $CLR_TRUST_STORE $TMP
     fi
     mv $CLR_STORE_STAGE $CLR_TRUST_STORE
     if [ -e $TMP ]; then
@@ -192,9 +194,11 @@ $tmp"
 
 print_add_help() {
     cat <<EOF
-Usage: ${BASENAME} add <file>
+Usage: ${BASENAME} add [-h|--help] <filename>...
 
-    file        file containing a PEM-encoded Root CA certificate
+    -h | --help         Prints this help message and exits
+
+    <filesname>...      List of files containing a PEM-encoded Root CA certificate(s)
 EOF
 }
 
@@ -310,7 +314,9 @@ EOF
 
 print_list_help() {
     cat <<EOF
-Usage: ${BASENAME} list
+Usage: ${BASENAME} list [-h|--help]
+
+    -h | --help         Prints this help message and exits
 
     Prints the list of certificates, each in form of
         id: <id>
@@ -384,14 +390,16 @@ cmd_check() {
 
 print_remove_help() {
     cat <<EOF
-Usage: ${BASENAME} remove [-f|--force] [filename|id]...
+Usage: ${BASENAME} remove [-f|--force] <filename|id>...
 
     Distrusts specified Certificate Authorities. Each CA can be represented
     either by a file containing PEM-encoded X.509 certificate or an id as
     obtained from the list command.
 
     -f | --force        Forces removal of certificates
-    -h | --help         Prints this help message
+    -h | --help         Prints this help message and exits
+
+    <filename|id>...    List of files and/or ids to remove from the store
 EOF
 }
 
@@ -438,12 +446,12 @@ $1"
     files=$(echo "$files" | sed -e '1d')
     test ! -z "$files" && echo "$files" | while read f; do
         finger=$(openssl x509 -in "${f}" -noout -fingerprint -sha1 2>/dev/null)
-        finger=${finger#SHA1 Fingerprint=}
         if [ $? -ne 0 ]; then
             echo "${f}" >>$err &
             continue
         fi
-        printf "%s\t%s\n" "${crt}" "${finger}"
+        finger=${finger#SHA1 Fingerprint=}
+        printf "%s\t%s\n" "${f}" "${finger}"
     done >$out
     invld_files=$(cat $err)
     if [ ! -z "$invld_files" ]; then
