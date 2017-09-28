@@ -28,7 +28,7 @@ setup() {
     [ $cnt -eq 2 ]
     # add duplicate
     run $CLRTRUST add $CERTS/c1.pem
-    [ $status -eq 128 ]
+    [ $status -eq 255 ]
     # add two
     $CLRTRUST add $CERTS/c[3=4].pem
     run $CLRTRUST list

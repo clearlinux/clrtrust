@@ -17,19 +17,19 @@ setup() {
     [ -z "$output" ]
     # try adding intermediate CA
     run $CLRTRUST add $CERTS/bad/intermediate.pem
-    [ $status -eq 128 ]
+    [ $status -eq 255 ]
     run $CLRTRUST list
     [ $status -eq 0 ]
     [ -z "$output" ]
     # try adding leaf certificate
     run $CLRTRUST add $CERTS/bad/leaf.pem
-    [ $status -eq 128 ]
+    [ $status -eq 255 ]
     run $CLRTRUST list
     [ $status -eq 0 ]
     [ -z "$output" ]
     # try adding non-certificate
     run $CLRTRUST add $CERTS/bad/non-cert.txt
-    [ $status -eq 128 ]
+    [ $status -eq 255 ]
     run $CLRTRUST list
     [ $status -eq 0 ]
     [ -z "$output" ]

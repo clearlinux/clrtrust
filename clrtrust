@@ -7,7 +7,7 @@
 is_root() {
     if [ $UID -ne 0 ]; then
         1>&2 echo "Must be root to execute the command."
-        return 127
+        return 1
     fi
     return 0
 }
@@ -15,7 +15,7 @@ is_root() {
 has_openssl() {
     if ! command -v openssl >/dev/null 2>&1; then
         1>&2 echo "openssl is required, but not found."
-        return 127
+        return 1
     fi
     return 0
 }
@@ -23,7 +23,7 @@ has_openssl() {
 has_p11kit() {
     if ! command -v p11-kit >/dev/null 2>&1; then
         1>&2 echo "p11-kit is required, but not found."
-        return 127
+        return 1
     fi
     return 0
 }
@@ -41,7 +41,7 @@ is_root_ca() {
 
 is_number() {
     case $1 in
-        ''|*[!0-9]*) # not a number, return
+        ''|*[!0-9]*) # not a number
             return 0
             ;;
         *)
@@ -61,6 +61,13 @@ CLR_LOCAL_TRUST_SRC=${CLR_LOCAL_TRUST_SRC:-/etc/ca-certs}
 
 # Clear Linux-supplied source of trust
 CLR_CLEAR_TRUST_SRC=${CLR_CLEAR_TRUST_SRC:-/usr/share/ca-certs}
+
+##### ERROR CODES
+# 0 is always success, used literally
+EPERM=1         # operation not permitted
+EINVAL=22       # invalid argument
+EBADST=127      # invalid state / health check does not pass
+EERR=255        # general error
 
 # takes single argument: a directory
 # the caller should grab the stdout of the call, it will contain found cert info
@@ -119,7 +126,7 @@ cmd_generate() {
             ;;
         *)
             print_generate_help
-            return 1
+            return $EINVAL
             ;;
     esac
     # find all the certificates
@@ -161,13 +168,18 @@ $tmp"
 
     if ! (cd $CLR_STORE_STAGE/anchors && c_rehash . >/dev/null 2>&1); then
         1>&2 echo "Error rehashing the anchors."
-        exit 1
+        rm -r $CLR_STORE_STAGE
+        return $EERR
     fi
 
     TMP=$(mktemp -u)
-    mv $CLR_TRUST_STORE $TMP
+    if [ -e $CLR_TRUST_STORE ]; then
+        mv $CLR_TRUST_STORE $TMP
+    fi
     mv $CLR_STORE_STAGE $CLR_TRUST_STORE
-    rm -rf $TMP
+    if [ -e $TMP ]; then
+        rm -rf $TMP
+    fi
 
     # generate the compat after the store is deployed: p11-kit is configured to
     # look at the default location
@@ -229,7 +241,7 @@ $1"
     if [ -z "$files" ]; then
         1>&2 echo "Specify certificate(s) to add."
         print_add_help
-        return 128
+        return $EINVAL
     fi
     files=$(echo "$files" | sed -e '1d')
     ca_certs=$(find_all_certs)
@@ -300,7 +312,7 @@ EOF
         done
         cmd_generate
     else
-        ret=128
+        ret=$EERR
         1>&2 echo "$out_content"
     fi
     rm $err $tmp $out
@@ -332,7 +344,7 @@ cmd_list() {
                 ;;
             *)
                 print_list_help
-                return 1
+                return $EINVAL
                 ;;
         esac
         shift
@@ -342,7 +354,7 @@ cmd_list() {
     if [ ! -d ${CLR_TRUST_STORE}/anchors ]; then
         1>&2 echo "${CLR_TRUST_STORE} is not a trust store." \
             " Use ${BASENAME} generate to create the store."
-        return 128
+        return $EERR
     fi
     certs=$(find ${CLR_TRUST_STORE}/anchors -maxdepth 1 -type f | LC_COLLATE=C sort)
     if [ -z "${certs}" ]; then
@@ -371,14 +383,14 @@ print_check_help() {
 }
 
 cmd_check() {
-    if [ ! -e $CLR_LOCAL_TRUST_SRC/distrusted ]; then
-        mkdir $CLR_LOCAL_TRUST_SRC/distrusted
-    else
+    if [ -e $CLR_LOCAL_TRUST_SRC/distrusted ]; then
         if [ ! -d $CLR_LOCAL_TRUST_SRC/distrusted ]; then
             1>&2 echo "$CLR_LOCAL_TRUST_SRC/distrusted must be a directory"
-            return 2 # FATAL
+            return $EBADST
         fi
     fi
+
+    return 0
 }
 
 print_remove_help() {
@@ -428,8 +440,8 @@ $1"
     done
 
     cmd_check()
-    if [ $? -eq 2 ]; then # FATAL, goodbye!
-        return 2
+    if [ $? -eq $EBADST ]; then
+        return $EBADST
     fi
 
     err=$(mktemp)
@@ -508,11 +520,11 @@ BASENAME=$(basename $0) # this may not work, but we don't care too much
 ARGS=$*
 
 if ! has_openssl; then
-    exit 127
+    exit $EBADST
 fi
 
 if ! has_p11kit; then
-    exit 127
+    exit $EBADST
 fi
 
 while [ $# -gt 0 ]; do
@@ -541,7 +553,7 @@ case $COMMAND in
         if [ "x$CLR_TRUST_STORE" = "x$CLR_TRUST_STORE_DFLT" ]; then
             is_root
             if [ $? -ne 0 ]; then
-                exit 127
+                exit $EPERM
             fi
         fi
         ;;
@@ -566,14 +578,14 @@ case $COMMAND in
         ;;
     restore|check)
         1>&2 echo "$COMMAND not yet supported."
-        exit 1
+        exit $EINVAL
         ;;
     *)
         if [ ! -z $COMMAND ]; then
             1>&2 echo "Command not understood: $COMMAND"
         fi
         print_help
-        exit 128
+        exit $EINVAL
         ;;
 esac
 
