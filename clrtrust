@@ -72,12 +72,12 @@ find_certs() {
     if [ -z $dir ]; then return 255; fi
     if [ ! -d $dir ]; then return 255; fi
     find $dir -maxdepth 1 -type f | while read f; do
-        finger=$(openssl x509 -in "${f}" -noout -fingerprint -sha256 2>/dev/null)
+        finger=$(openssl x509 -in "${f}" -noout -fingerprint -sha1 2>/dev/null)
         if [ $? -ne 0 ]; then
             1>&2 echo "ERROR: file ${f} is not a certificate"
             continue
         fi
-        finger=${finger#SHA256 Fingerprint=}
+        finger=${finger#SHA1 Fingerprint=}
         printf "%s\t%s\n" "${f}" "${finger}"
     done
     return 0
@@ -244,13 +244,13 @@ $1"
             # TODO: get the file, assign it to files
             continue
         fi
-        finger=$(openssl x509 -in "${f}" -noout -fingerprint -sha256 2>$tmp)
+        finger=$(openssl x509 -in "${f}" -noout -fingerprint -sha1 2>$tmp)
         if [ $? -ne 0 ]; then
             echo "$f is not an X.509 certificate."
             cat $tmp
             continue
         fi
-        finger=${finger#SHA256 Fingerprint=}
+        finger=${finger#SHA1 Fingerprint=}
         is_root_ca "$f"
         if [ $opt_force -ne 1 -a $? -ne 0 ]; then
             cat <<EOF
@@ -351,12 +351,12 @@ cmd_list() {
     fi
 
     echo "$certs" | while read f; do
-        info=$(openssl x509 -in "${f}" -noout -fingerprint -sha256 -issuer -enddate)
+        info=$(openssl x509 -in "${f}" -noout -fingerprint -sha1 -issuer -enddate)
         if [ $? -ne 0 ]; then
             1>&2 echo "${f} is not an X.509 certificate."
         fi
         info=$(echo "$info" |                                         \
-            sed -e "s/^SHA256 Fingerprint=/id: /"                      \
+            sed -e "s/^SHA1 Fingerprint=/id: /"                        \
                     -e "2i${indent}File: ${f}"                          \
                     -e "s/^issuer=\s*/${indent}Authority: /"             \
                     -e "s/^notAfter=\s*/${indent}Expires: /")
@@ -436,8 +436,8 @@ $1"
     out=$(mktemp)
     files=$(echo "$files" | sed -e '1d')
     test ! -z "$files" && echo "$files" | while read f; do
-        finger=$(openssl x509 -in "${f}" -noout -fingerprint -sha256 2>/dev/null)
-        finger=${finger#SHA256 Fingerprint=}
+        finger=$(openssl x509 -in "${f}" -noout -fingerprint -sha1 2>/dev/null)
+        finger=${finger#SHA1 Fingerprint=}
         if [ $? -ne 0 ]; then
             echo "${f}" >>$err &
             continue
