@@ -39,17 +39,6 @@ is_root_ca() {
     test $t -eq 1
 }
 
-is_number() {
-    case $1 in
-        ''|*[!0-9]*) # not a number
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
 ##### DEFAULT LOCATIONS
 
 # trust store default location
