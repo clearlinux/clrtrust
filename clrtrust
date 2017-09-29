@@ -447,7 +447,7 @@ $1"
     test ! -z "$files" && echo "$files" | while read f; do
         finger=$(openssl x509 -in "${f}" -noout -fingerprint -sha1 2>/dev/null)
         if [ $? -ne 0 ]; then
-            echo "${f}" >>$err &
+            1>&2 echo "${f} is not an X.509 certificate." >>$err
             continue
         fi
         finger=${finger#SHA1 Fingerprint=}
@@ -455,8 +455,10 @@ $1"
     done >$out
     invld_files=$(cat $err)
     if [ ! -z "$invld_files" ]; then
-        # FIXME: handle
-        echo "$invld_files"
+        2>&1 echo "$invld_files"
+        2>&1 echo "Trust store has not been modified."
+        rm $out $err
+        return $EERR
     fi
     files=$(cat $out)
     ids=$(echo $ids && (echo "$files" | cut -f 2))
@@ -480,6 +482,8 @@ $1"
             if [ ! -e $CLR_LOCAL_TRUST_SRC/distrusted ]; then
                 mkdir $CLR_LOCAL_TRUST_SRC/distrusted
             fi
+            # if certificate is provided by clear trust store, distrust it,
+            # otherwise remove it
             if [ $(dirname $f) = $CLR_CLEAR_TRUST_SRC/trusted ]; then
                 cp $f $CLR_LOCAL_TRUST_SRC/distrusted
             else

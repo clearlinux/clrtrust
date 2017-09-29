@@ -40,6 +40,12 @@ setup() {
     [ $status -eq 0 ]
     cnt=$(echo "$output" | grep ^id | wc -l)
     [ $cnt -eq 1 ]
+    # try removing non-certificate
+    run $CLRTRUST remove $CERTS/bad/non-cert.txt
+    [ $status -eq 255 ]
+    run $CLRTRUST list
+    cnt=$(echo "$output" | grep ^id | wc -l)
+    [ $cnt -eq 1 ]
     # leaf can be forced
     $CLRTRUST add --force $CERTS/bad/leaf.pem
     run $CLRTRUST list
