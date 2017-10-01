@@ -128,9 +128,9 @@ cmd_generate() {
     if [ ! -z "$dup_certs" ]; then
         dup_certs_cnt=$(echo "$dup_certs" | wc -l)
         echo "$dup_certs_cnt certificate(s) are duplicated. Cleaning up..."
-        for h in "${dup_certs}"; do
-            tmp=$(echo "${ca_certs}" | grep $h | head -1)
-            ca_certs=$(echo "${ca_certs}" | grep -v $h)
+        for h in ${dup_certs}; do
+            tmp=$(echo "${ca_certs}" | grep "${h}" | head -1)
+            ca_certs=$(echo "${ca_certs}" | grep -v "${h}")
             ca_certs="${ca_certs}
 $tmp"
         done
@@ -143,7 +143,7 @@ $tmp"
         distrust_certs_cnt=$(echo "$distrust_certs" | wc -l)
         echo "Distrusting $distrust_certs_cnt certificate(s)."
         for h in $(echo "$distrust_certs" | cut -f 2); do
-            ca_certs=$(echo "$ca_certs" | grep -v $h)
+            ca_certs=$(echo "$ca_certs" | grep -v "${h}")
         done
     fi
 
