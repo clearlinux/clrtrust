@@ -84,6 +84,12 @@ find_all_certs() {
     find_certs $CLR_LOCAL_TRUST_SRC/trusted
 }
 
+ensure_local_trust_src() {
+    mkdir -p ${CLR_LOCAL_TRUST_SRC}/trusted     \
+             ${CLR_LOCAL_TRUST_SRC}/distrusted   \
+             &>/dev/null
+}
+
 print_generate_help() {
     cat <<EOF
 Usage: ${BASENAME} generate [-h|--help]
@@ -236,6 +242,7 @@ $1"
         print_add_help
         return $EINVAL
     fi
+    ensure_local_trust_src
     files=$(echo "$files" | sed -e '1d')
     ca_certs=$(find_all_certs)
     distrusted_certs=$(find_certs $CLR_LOCAL_TRUST_SRC/distrusted)
@@ -440,7 +447,7 @@ $1"
     if [ $? -eq $EBADST ]; then
         return $EBADST
     fi
-
+    ensure_local_trust_src
     err=$(mktemp)
     out=$(mktemp)
     files=$(echo "$files" | sed -e '1d')
