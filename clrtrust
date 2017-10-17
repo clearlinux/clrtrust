@@ -443,7 +443,7 @@ $1"
         shift
     done
 
-    cmd_check()
+    cmd_check
     if [ $? -eq $EBADST ]; then
         return $EBADST
     fi
