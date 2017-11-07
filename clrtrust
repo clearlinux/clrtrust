@@ -34,7 +34,7 @@ is_root_ca() {
     # if issuer and subject match, then it's a self-signed certificate, the only
     # indication of a Root CA we need to take into account (X.509v3 extensions
     # are not)
-    t=$(openssl x509 -in $1 -noout -issuer -subject 2>/dev/null      \
+    t=$(openssl x509 -in "$1" -noout -issuer -subject 2>/dev/null      \
             | sed -e 's/^\(issuer\|subject\)=//' | uniq | wc -l)
     test $t -eq 1
 }
@@ -161,7 +161,9 @@ $tmp"
     mkdir -p $CLR_STORE_STAGE/anchors
     mkdir -p $CLR_STORE_STAGE/compat
 
-    echo "${ca_certs}" | cut -f 1 | xargs cp -t $CLR_STORE_STAGE/anchors
+    if [ ! -z "${ca_certs}" ]; then
+        echo "${ca_certs}" | cut -f 1 | xargs -d '\n' cp -t $CLR_STORE_STAGE/anchors
+    fi
 
     if ! (cd $CLR_STORE_STAGE/anchors && c_rehash . >/dev/null 2>&1); then
         1>&2 echo "Error rehashing the anchors."
@@ -284,8 +286,8 @@ EOF
                 continue
             fi
         fi
-        fname=$(basename $f)
-        if [ -f $CLR_LOCAL_TRUST_SRC/trusted/$fname ]; then
+        fname=$(basename "$f")
+        if [ -f "$CLR_LOCAL_TRUST_SRC/trusted/$fname" ]; then
             # FIXME: it's not a duplicate, should really not be picky about file
             # names.
             echo "File $fname already exists."
@@ -492,9 +494,9 @@ $1"
             # if certificate is provided by clear trust store, distrust it,
             # otherwise remove it
             if [ $(dirname $f) = $CLR_CLEAR_TRUST_SRC/trusted ]; then
-                cp $f $CLR_LOCAL_TRUST_SRC/distrusted
+                cp "$f" $CLR_LOCAL_TRUST_SRC/distrusted
             else
-                rm $f
+                rm "$f"
             fi
         done
         cmd_generate
@@ -573,7 +575,7 @@ case $COMMAND in
         exit $?
         ;;
     add)
-        cmd_add $*
+        cmd_add "$@"
         exit $?
         ;;
     list)
@@ -581,7 +583,7 @@ case $COMMAND in
         exit $?
         ;;
     remove)
-        cmd_remove $*
+        cmd_remove "$@"
         exit $?
         ;;
     restore|check)
