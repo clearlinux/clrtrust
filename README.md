@@ -93,7 +93,7 @@ clrtrust add ~/PrivateCA.pem
 command to convert to PEM, for example:
 
 ```
-openssl x509 -in PrivateCA.der -out PrivateCA.pem -outform pem
+openssl x509 -in PrivateCA.cer -inform der -out PrivateCA.pem -outform pem
 ```
 
 ### Remove (distrust) a Root CA
