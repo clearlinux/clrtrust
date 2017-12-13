@@ -10,7 +10,7 @@ setup() {
     cp $CERTS/c[3-4].pem $CLR_LOCAL_TRUST_SRC/trusted
 }
 
-@test "generate store, source both Clear and local" {
+@test "distrust Clear-provided CAs" {
     run $CLRTRUST generate
     [ $status -eq 0 ]
     cnt=$(ls $STORE/anchors | wc -l)
