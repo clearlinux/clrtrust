@@ -9,25 +9,23 @@ function find_clrtrust {
 }
 
 function setup_fs {
-    SOURCES=$(mktemp -d)
-    STORE=$(mktemp -d)
+    ROOT=$(mktemp -d)
     CERTS=$BATS_TEST_DIRNAME/certs
-    mkdir -p $SOURCES/etc/ca-certs/trusted
-    mkdir -p $SOURCES/etc/ca-certs/distrusted
-    mkdir -p $SOURCES/usr/share/ca-certs/trusted
-    mkdir -p $SOURCES/usr/share/ca-certs/distrusted
-    CLR_TRUST_STORE=$STORE
-    CLR_LOCAL_TRUST_SRC=$SOURCES/etc/ca-certs
-    CLR_CLEAR_TRUST_SRC=$SOURCES/usr/share/ca-certs
+    mkdir -p $ROOT/etc/ca-certs/trusted
+    mkdir -p $ROOT/etc/ca-certs/distrusted
+    mkdir -p $ROOT/usr/share/ca-certs/trusted
+    mkdir -p $ROOT/usr/share/ca-certs/distrusted
+    mkdir -p $ROOT/var/cache/ca-certs
+    CLR_TRUST_STORE=$ROOT/var/cache/ca-certs
+    STORE=$CLR_TRUST_STORE
+    CLR_LOCAL_TRUST_SRC=$ROOT/etc/ca-certs
+    CLR_CLEAR_TRUST_SRC=$ROOT/usr/share/ca-certs
     export CLR_TRUST_STORE CLR_LOCAL_TRUST_SRC CLR_CLEAR_TRUST_SRC
 }
 
 function remove_fs {
-    unset CLR_TRUST_STORE_DFLT
-    unset CLR_LOCAL_TRUST_SRC
-    unset CLR_CLEAR_TRUST_SRC
-    rm -rf $SOURCES
-    rm -rf $STORE
+    unset CLR_TRUST_STORE CLR_LOCAL_TRUST_SRC CLR_CLEAR_TRUST_SRC
+    rm -rf $ROOT
 }
 
 # vim: ft=sh:sw=4:ts=4:et:tw=80:ai
