@@ -63,8 +63,7 @@ EERR=255        # general error
 # in form of:
 # <file name>\t<sha-256 fingerprint>
 find_certs() {
-    local dir
-    dir=$1
+    local dir=$1
     if [ -z $dir ]; then return 255; fi
     if [ ! -d $dir ]; then return 255; fi
     find $dir -maxdepth 1 -type f | while read f; do
@@ -84,6 +83,10 @@ find_all_certs() {
     find_certs $CLR_LOCAL_TRUST_SRC/trusted
 }
 
+print_verbose_error() {
+    test -n "$VERBOSE" && 1>&2 printf "%s" "$@" && 1>&2 echo
+}
+
 print_check_help() {
     cat <<EOF
 Usage: ${BASENAME} check [-h|--help] [-v|--verbose]
@@ -96,56 +99,45 @@ EOF
 }
 
 cmd_check() {
-    local opt_verbose
-    local ret # return value
-
-    ret=0
 
     while [ $# -gt 0 ]; do
         case $1 in
-            -h|--help)
+            ("-h"|"--help")
                 print_check_help
                 return 0
                 ;;
-            -v|--verbose)
-                opt_verbose=1
+            ("-v"|"--verbose")
+                VERBOSE=1
                 shift
                 ;;
-            *)
+            (*)
                 print_check_help
                 return $EINVAL
                 ;;
         esac
     done
 
-    if [ ! -z "${VERBOSE}" ]; then
-        opt_verbose=1
-    fi
-
     if [ -e "${CLR_LOCAL_TRUST_SRC}" ]; then
         if [ ! -d "${CLR_LOCAL_TRUST_SRC}" ]; then
             1>&2 echo "${CLR_LOCAL_TRUST_SRC} must be a directory."
-            test ! -z $opt_verbose && 1>&2 cat <<EOF
-    ${CLR_LOCAL_TRUST_SRC} is used by ${BASENAME} to store local (user-added) trust and
-    distrust data.
-EOF
-            ret=$EBADST
+            print_verbose_error                                                 \
+"${CLR_LOCAL_TRUST_SRC} is used by ${BASENAME} to store local (user-added)"      \
+" trust and distrust data."
+            return $EBADST
         fi
-        if [ -e "${CLR_LOCAL_TRUST_SRC}/distrusted" -a ! -d "${CLR_LOCAL_TRUST_SRC}/distrusted" ]; then
+        if [ -e "${CLR_LOCAL_TRUST_SRC}/distrusted" ] && [ ! -d "${CLR_LOCAL_TRUST_SRC}/distrusted" ]; then
             1>&2 echo "$CLR_LOCAL_TRUST_SRC/distrusted must be a directory."
-            test ! -z $opt_verbose && 1>&2 cat <<EOF
-    ${CLR_LOCAL_TRUST_SRC}/trusted is a directory used by ${BASENAME} to store
-    trusted root CA certificates.
-EOF
-            ret=$EBADST
+            print_verbose_error                                                 \
+"${CLR_LOCAL_TRUST_SRC}/trusted is a directory used by ${BASENAME} to store"     \
+" trusted root CA certificates."
+            return $EBADST
         fi
-        if [ -e "${CLR_LOCAL_TRUST_SRC}/trusted" -a ! -d "${CLR_LOCAL_TRUST_SRC}/trusted" ]; then
+        if [ -e "${CLR_LOCAL_TRUST_SRC}/trusted" ] && [ ! -d "${CLR_LOCAL_TRUST_SRC}/trusted" ]; then
             1>&2 echo "$CLR_LOCAL_TRUST_SRC/trusted must be a directory."
-            test ! -z $opt_verbose && 1>&2 cat <<EOF
-    ${CLR_LOCAL_TRUST_SRC}/distrusted is a directory used by ${BASENAME} to store
-    distrusted root CA certificates.
-EOF
-            ret=$EBADST
+            print_verbose_error                                                 \
+"${CLR_LOCAL_TRUST_SRC}/distrusted is a directory used by ${BASENAME} to store"  \
+"distrusted root CA certificates."
+            return $EBADST
         fi
     fi # it's OK if CLR_LOCAL_TRUST_SRC does not exist
 
@@ -153,22 +145,20 @@ EOF
         for dir in "${CLR_CLEAR_TRUST_SRC}" "${CLR_CLEAR_TRUST_SRC}/trusted"; do
             if [ ! -d "${dir}" ]; then
                 1>&2 echo "${dir} must be a directory."
-                test ! -z $opt_verbose && 1>&2 cat <<EOF
-    ${dir} is a directory which contains trust and distrust data provided by
-    Clear Linux. It is installed initially and updated by swupd. Remove ${dir}
-    and run 'swupd verify --fix' to reinstall.
-EOF
-                ret=$EBADST
+                print_verbose_error                                             \
+"${dir} is a directory which contains trust and distrust data provided by"       \
+" Clear: Linux. It is installed initially and updated by swupd. Remove ${dir}"    \
+" and run 'swupd verify --fix' to reinstall."
+                return $EBADST
             fi
         done
     else # it's not OK if CLR_CLEAR_TRUST_SRC does not exist
         1>&2 echo "${CLR_CLEAR_TRUST_SRC} does not exist."
-        test ! -z $opt_verbose && 1>&2 cat <<EOF
-    ${CLR_CLEAR_TRUST_SRC} is a directory which contains trust and distrust data
-    provided by Clear Linux. It is installed initially and updated by swupd. Run
-    'swupd verify --fix' to reinstall.
-EOF
-        ret=$EBADST
+        print_verbose_error                                                     \
+"${CLR_CLEAR_TRUST_SRC} is a directory which contains trust and distrust data"   \
+" provided by Clear Linux. It is installed initially and updated by swupd. Run"   \
+" 'swupd verify --fix' to reinstall."
+        return $EBADST
     fi
 
     dir=$(dirname ${CLR_TRUST_STORE})
@@ -176,22 +166,21 @@ EOF
         1>&2 echo "${dir} does not exit."
     fi
 
-    if [ "x${CLR_TRUST_STORE}" = "x${CLR_TRUST_STORE_DFLT}" ]; then
+    if [ "${CLR_TRUST_STORE}" = "${CLR_TRUST_STORE_DFLT}" ]; then
         usr="root"
     else
         usr=${USER}
     fi
 
     stat=($(stat -L -c "0%a %G %U" "$dir"))
+    if [ $? -ne 0 ]; then
+        return $EERR
+    fi
     ownusr=${stat[2]}
     owngrp=${stat[1]}
     perm=${stat[0]}
 
-    if [ -z "$perm" -o -z "$ownusr" -o -z "$owngrp" -o -z "$usr" ]; then
-        return $EERR
-    fi
-
-    if [ "x$ownusr" = "x$usr" ] && (( $perm & 0200 )); then
+    if [ "$ownusr" = "$usr" ] && (( $perm & 0200 )); then
         true
     elif (( $perm & 0002 )); then
         true
@@ -205,20 +194,18 @@ EOF
         done
         if [ $found -ne 1 ]; then
             1>&2 echo "${dir} is not writeable for ${usr}."
-            test ! -z ${opt_verbose} && 1>&2 echo <<EOF
-    ${dir} must be writeable: the store will be generated at ${CLR_TRUST_STORE}
-EOF
-            ret=$EPERM
+            print_verbose_error         \
+"${dir} must be writeable: the store will be generated at ${CLR_TRUST_STORE}"
+            return $EPERM
         fi
     else
         1>&2 echo "${dir} is not writeable for ${usr}."
-        test ! -z ${opt_verbose} && 1>&2 echo <<EOF
-    ${dir} must be writeable: the store will be generated at ${CLR_TRUST_STORE}
-EOF
-        ret=$EPERM
+        print_verbose_error             \
+"${dir} must be writeable: the store will be generated at ${CLR_TRUST_STORE}"
+        return $EPERM
     fi
 
-    return $ret
+    return 0
 }
 
 ensure_local_trust_src() {
@@ -256,22 +243,22 @@ cmd_generate() {
 
     while [ $# -gt 0 ]; do
         case $1 in
-            -h|--help)
+            ("-h"|"--help")
                 print_generate_help
                 return 0
                 ;;
-            -s) # internal option
+            ("-s") # internal option
                 opt_skip_check=1
                 shift
                 ;;
-            *)
+            (*)
                 print_generate_help
                 return $EINVAL
                 ;;
         esac
     done
 
-    if [ ! -z "$opt_skip_check" ]; then
+    if [ -n "$opt_skip_check" ]; then
         # run check
         cmd_check
         ret=$?
@@ -285,7 +272,7 @@ cmd_generate() {
 
     # handle the duplicates
     dup_certs=$(echo "${ca_certs}" | cut -f 2 | sort | uniq -d)
-    if [ ! -z "$dup_certs" ]; then
+    if [ -n "$dup_certs" ]; then
         dup_certs_cnt=$(echo "$dup_certs" | wc -l)
         echo "$dup_certs_cnt certificate(s) are duplicated. Cleaning up..."
         for h in ${dup_certs}; do
@@ -299,7 +286,7 @@ $tmp"
     # remove the distrusted ones
     distrust_certs=$(find_certs $CLR_LOCAL_TRUST_SRC/distrusted)
     ca_certs_cnt=$(echo "$ca_certs" | wc -l)
-    if [ ! -z "$distrust_certs" ]; then
+    if [ -n "$distrust_certs" ]; then
         distrust_certs_cnt=$(echo "$distrust_certs" | wc -l)
         echo "Distrusting $distrust_certs_cnt certificate(s)."
         for h in $(echo "$distrust_certs" | cut -f 2); do
@@ -315,7 +302,7 @@ $tmp"
     mkdir -p $CLR_STORE_STAGE/anchors
     mkdir -p $CLR_STORE_STAGE/compat
 
-    if [ ! -z "${ca_certs}" ]; then
+    if [ -n "${ca_certs}" ]; then
         echo "${ca_certs}" | cut -f 1 | xargs -d '\n' cp -t $CLR_STORE_STAGE/anchors
     fi
 
@@ -373,19 +360,20 @@ cmd_add() {
     local err
     local err_content
     local tmp
-    local opt_force
-    opt_force=0
+    local opt_force=0
+
     while [ $# -gt 0 ]; do
         case $1 in
-            -h|--help)
+            ("-h"|"--help")
                 print_add_help
                 return 0
                 ;;
-            -f|--force)
+            ("-f"|"--force")
                 opt_force=1
                 shift
                 ;;
-            *)
+            (*)
+                echo "$1"
                 # first empty line will be deleted few lines later
                 files="$files
 $1"
@@ -428,7 +416,7 @@ $1"
         fi
         finger=${finger#SHA1 Fingerprint=}
         is_root_ca "$f"
-        if [ $opt_force -ne 1 -a $? -ne 0 ]; then
+        if [ $? -ne 0 ] && [ $opt_force -ne 1 ]; then
             cat <<EOF
 Certificate $f is not a Root CA. Use --force and proper judgement to enforce.
 EOF
@@ -502,13 +490,14 @@ cmd_list() {
     local info
     local indent
     local err
+
     while [ $# -gt 0 ]; do
         case $1 in
-            -h|--help)
+            ("-h"|"--help")
                 print_list_help
                 return 0
                 ;;
-            *)
+            (*)
                 print_list_help
                 return $EINVAL
                 ;;
@@ -524,7 +513,7 @@ cmd_list() {
     fi
     certs=$(find ${CLR_TRUST_STORE}/anchors -maxdepth 1 -type f | LC_COLLATE=C sort)
     if [ -z "${certs}" ]; then
-        test ! -z $VERBOSE && echo "Nothing is trusted. No anchors found in ${CLR_TRUST_STORE}."
+        print_verbose_error "Nothing is trusted. No anchors found in ${CLR_TRUST_STORE}."
         return 0
     fi
 
@@ -571,16 +560,16 @@ cmd_remove() {
 
     while [ $# -gt 0 ]; do
         case $1 in
-            -h|--help)
+            ("-h"|"--help")
                 print_remove_help
                 return 0
                 ;;
-            -f|--force)
+            ("-f"|"--force")
                 # TODO: implement forcing
                 opt_force=1
                 true
                 ;;
-            *)
+            (*)
                 if [ -f "$1" ]; then
                     # need newline as a separator in case filename comes with
                     # spaces. first empty line will be deleted later.
@@ -605,7 +594,7 @@ $1"
     err=$(mktemp)
     out=$(mktemp)
     files=$(echo "$files" | sed -e '1d')
-    test ! -z "$files" && echo "$files" | while read f; do
+    test -n "$files" && echo "$files" | while read f; do
         finger=$(openssl x509 -in "${f}" -noout -fingerprint -sha1 2>/dev/null)
         if [ $? -ne 0 ]; then
             1>&2 echo "${f} is not an X.509 certificate." >>$err
@@ -615,9 +604,9 @@ $1"
         printf "%s\t%s\n" "${f}" "${finger}"
     done >$out
     invld_files=$(cat $err)
-    if [ ! -z "$invld_files" ]; then
-        2>&1 echo "$invld_files"
-        2>&1 echo "Trust store has not been modified."
+    if [ -n "$invld_files" ]; then
+        2>&1 echo "$invld_files
+Trust store has not been modified."
         rm $out $err
         return $EERR
     fi
@@ -638,7 +627,7 @@ $1"
         fi
     done >$out
     files=$(cat $out)
-    if [ ! -z "$files" ]; then
+    if [ -n "$files" ]; then
         echo "$files" | while read f; do
             if [ ! -e $CLR_LOCAL_TRUST_SRC/distrusted ]; then
                 mkdir $CLR_LOCAL_TRUST_SRC/distrusted
@@ -676,7 +665,6 @@ EOF
 }
 
 ##### GLOBAL VARS/OPTIONS
-VERBOSE=
 COMMAND=""
 BASENAME=$(basename $0) # this may not work, but we don't care too much
 ARGS=$*
@@ -690,29 +678,30 @@ if ! has_p11kit; then
 fi
 
 while [ $# -gt 0 ]; do
-    opt=$1
-    case $opt in
-        -v|--verbose)
+    case $1 in
+        ("-v"|"--verbose")
             VERBOSE=1
+            shift
+            continue
             ;;
-        -h|--help)
+        ("-h"|"--help")
             print_help
             exit 0
             ;;
-        generate|list|add|remove|restore|check)
-            COMMAND=$opt
+        ("generate"|"list"|"add"|"remove"|"restore"|"check")
+            COMMAND=$1
+            shift
             ;;
     esac
-    shift
-    if [ ! -z $COMMAND ]; then
+    if [ -n "$COMMAND" ]; then
         break
     fi
 done
 
 case $COMMAND in
-    generate|add|remove|restore)
+    ("generate"|"add"|"remove"|"restore")
         # must be root if writing to the default location
-        if [ "x$CLR_TRUST_STORE" = "x$CLR_TRUST_STORE_DFLT" ]; then
+        if [ "$CLR_TRUST_STORE" = "$CLR_TRUST_STORE_DFLT" ]; then
             is_root
             if [ $? -ne 0 ]; then
                 exit $EPERM
@@ -722,32 +711,32 @@ case $COMMAND in
 esac
 
 case $COMMAND in
-    generate)
-        cmd_generate $*
+    ("generate")
+        cmd_generate "$@"
         exit $?
         ;;
-    add)
+    ("add")
         cmd_add "$@"
         exit $?
         ;;
-    list)
-        cmd_list $*
+    ("list")
+        cmd_list "$@"
         exit $?
         ;;
-    remove)
+    ("remove")
         cmd_remove "$@"
         exit $?
         ;;
-    check)
-        cmd_check $*
+    ("check")
+        cmd_check "$@"
         exit $?
         ;;
-    restore)
+    ("restore")
         1>&2 echo "$COMMAND not yet supported."
         exit $EINVAL
         ;;
-    *)
-        if [ ! -z $COMMAND ]; then
+    (*)
+        if [ -n $COMMAND ]; then
             1>&2 echo "Command not understood: $COMMAND"
         fi
         print_help

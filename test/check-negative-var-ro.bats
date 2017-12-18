@@ -14,7 +14,7 @@ setup() {
 @test "check fails when trust store cannot be written" {
     run $CLRTRUST check
     [ $status -ne 0 ]
-    [ ! -z "$output" ]
+    [ -n "$output" ]
 }
 
 teardown() {

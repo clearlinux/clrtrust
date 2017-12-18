@@ -13,7 +13,7 @@ setup() {
 @test "check fails when there's no Clear source" {
     run $CLRTRUST check
     [ $status -ne 0 ]
-    [ ! -z "$output" ]
+    [ -n "$output" ]
 }
 
 teardown() {
