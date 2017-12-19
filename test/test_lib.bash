@@ -1,6 +1,6 @@
 # Copyright 2017 Intel Corporation
 
-function find_clrtrust {
+find_clrtrust() {
     if [ -x $BATS_TEST_DIRNAME/../clrtrust ]; then
         CLRTRUST=$(realpath $BATS_TEST_DIRNAME/../clrtrust)
     else
@@ -8,7 +8,7 @@ function find_clrtrust {
     fi
 }
 
-function setup_fs {
+setup_fs() {
     ROOT=$(mktemp -d)
     CERTS=$BATS_TEST_DIRNAME/certs
     mkdir -p $ROOT/etc/ca-certs/trusted
@@ -23,7 +23,7 @@ function setup_fs {
     export CLR_TRUST_STORE CLR_LOCAL_TRUST_SRC CLR_CLEAR_TRUST_SRC
 }
 
-function remove_fs {
+remove_fs() {
     unset CLR_TRUST_STORE CLR_LOCAL_TRUST_SRC CLR_CLEAR_TRUST_SRC
     rm -rf $ROOT
 }
