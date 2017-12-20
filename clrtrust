@@ -39,6 +39,14 @@ is_root_ca() {
     test $t -eq 1
 }
 
+is_single_cert() {
+    # each certificate provided as input to clrtrust must contain single
+    # certificate, so it can be used in CAPath. in other words, OpenSSL's bundle
+    # certificates are not accepted. this function checks for that
+    t=$(cat "$1" | grep 'BEGIN CERTIFICATE' | wc -l)
+    test $t -eq 1
+}
+
 ##### DEFAULT LOCATIONS
 
 # trust store default location
@@ -407,9 +415,13 @@ $1"
             # TODO: get the file, assign it to files
             continue
         fi
+        if ! is_single_cert "$f"; then
+            echo "$f must contain single certificate. Skipping..."
+            continue
+        fi
         finger=$(openssl x509 -in "${f}" -noout -fingerprint -sha1 2>$tmp)
         if [ $? -ne 0 ]; then
-            echo "$f is not an X.509 certificate."
+            echo "$f is not an X.509 certificate. Skipping..."
             cat $tmp
             continue
         fi
