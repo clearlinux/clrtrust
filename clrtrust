@@ -28,6 +28,17 @@ has_p11kit() {
     return 0
 }
 
+detect_c_rehash() {
+    if [ -z "$INTERNAL_C_REHASH" ] && command -v c_rehash >/dev/null 2>&1; then
+        # use c_rehash
+        C_REHASH_CMD=c_rehash
+    else
+        test -n "$VERBOSE" && echo "Using internal rehash"
+        C_REHASH_CMD=c_rehash_internal
+    fi
+    return 0
+}
+
 # takes cert file as a single argument
 # returns 0 if root ca, 1 otherwise
 is_root_ca() {
@@ -89,6 +100,31 @@ find_certs() {
 find_all_certs() {
     find_certs $CLR_CLEAR_TRUST_SRC/trusted
     find_certs $CLR_LOCAL_TRUST_SRC/trusted
+}
+
+# a c_rehash implementation for creating openssl-style CApath. this
+# implementation is much simpler than openssl's one: it is designed to rehash a
+# newly created store. it only takes directory to process as the argument and
+# no options. it further assumes that it runs on a pristine directory where
+# every file is a valid certificate, no duplicates (clrtrust ensures it prior to
+# calling this function). also, it is called on a stage directory, unique to
+# each clrtrust process, so no concurrent execution is assumed.
+c_rehash_internal() {
+    local dir=$1
+    if [ -z "$dir" ] || [ ! -d "$dir" ] || [ ! -w "$dir" ]; then
+        return 1
+    fi
+    (
+        cd "$dir"
+        find . -maxdepth 1 -type f | while read f; do
+            name=$(openssl x509 -in "$f" -noout -subject_hash 2>/dev/null)
+            lnno=0
+            while ! ln -s "$f" "${name}.${lnno}" && ((lnno++ < 100)); do
+                :
+            done 2>/dev/null
+        done
+    )
+    return 0
 }
 
 print_verbose_error() {
@@ -314,7 +350,7 @@ $tmp"
         echo "${ca_certs}" | cut -f 1 | xargs -d '\n' cp -t $CLR_STORE_STAGE/anchors
     fi
 
-    if ! (cd $CLR_STORE_STAGE/anchors && c_rehash . >/dev/null 2>&1); then
+    if ! (cd "$CLR_STORE_STAGE/anchors" && $C_REHASH_CMD . >/dev/null 2>&1); then
         1>&2 echo "Error rehashing the anchors."
         rm -r $CLR_STORE_STAGE
         return $EERR
@@ -354,6 +390,7 @@ print_add_help() {
 Usage: ${BASENAME} add [-h|--help] <filename>...
 
     -h | --help         Prints this help message and exits
+    -f | --force        Force addition of the certificate if possible
 
     <filename>...      List of files containing a PEM-encoded Root CA certificate(s)
 EOF
@@ -661,7 +698,11 @@ Trust store has not been modified."
 
 print_help() {
     cat <<EOF
-Usage: ${BASENAME} [-v|--verbose] [-h|--help] <command> [options]
+Usage: ${BASENAME} [-v|--verbose] [-h|--help] [-c|--internal-rehash] <command> [options]
+
+    -v | --verbose          Shows more details about execution
+    -c | --internal-rehash  Forces use of internal implementation of c_rehash
+    -h | --help             Prints this message
 
     Commands
         generate    generates the trust store
@@ -699,6 +740,11 @@ while [ $# -gt 0 ]; do
             print_help
             exit 0
             ;;
+        ("-c"|"--internal-rehash")
+            INTERNAL_C_REHASH=1
+            shift
+            continue
+            ;;
         ("generate"|"list"|"add"|"remove"|"restore"|"check")
             COMMAND=$1
             shift
@@ -708,6 +754,8 @@ while [ $# -gt 0 ]; do
         break
     fi
 done
+
+detect_c_rehash
 
 case $COMMAND in
     ("generate"|"add"|"remove"|"restore")
