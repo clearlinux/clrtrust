@@ -355,7 +355,7 @@ Usage: ${BASENAME} add [-h|--help] <filename>...
 
     -h | --help         Prints this help message and exits
 
-    <filesname>...      List of files containing a PEM-encoded Root CA certificate(s)
+    <filename>...      List of files containing a PEM-encoded Root CA certificate(s)
 EOF
 }
 
