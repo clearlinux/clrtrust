@@ -216,6 +216,12 @@ cmd_check() {
         usr=${USER}
     fi
 
+    if [ -z ${usr} ]; then
+        # this is most likely means mock build, but even if not the checks below
+        # do not apply if the variable is not set
+        return 0
+    fi
+
     stat=($(stat -L -c "0%a %G %U" "$dir"))
     if [ $? -ne 0 ]; then
         return $EERR
