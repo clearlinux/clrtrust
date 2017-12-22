@@ -10,7 +10,8 @@ checking its consistency.
 
 ## License
 
-clrtrust is provided under terms of the GPL, version 2.0
+clrtrust is provided under terms of the GPL, version 2.0. See
+[`COPYING`](COPYING) for details.
 
 Copyright &copy; 2017 Intel Corporation
 
