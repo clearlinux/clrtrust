@@ -54,7 +54,7 @@ is_single_cert() {
     # each certificate provided as input to clrtrust must contain single
     # certificate, so it can be used in CAPath. in other words, OpenSSL's bundle
     # certificates are not accepted. this function checks for that
-    t=$(cat "$1" | grep 'BEGIN CERTIFICATE' | wc -l)
+    t=$(cat "$1" | grep 'BEGIN \(X509 \|TRUSTED \|\)CERTIFICATE' | wc -l)
     test $t -eq 1
 }
 
