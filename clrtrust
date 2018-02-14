@@ -28,6 +28,13 @@ has_p11kit() {
     return 0
 }
 
+# checks if the location to write is the default trust store. extra caution is
+# needed when re-writing the system-wide store (e.g. serialization, privilege
+# checks and so on).
+is_system_store() {
+    [ "$CLR_TRUST_STORE" = "$CLR_TRUST_STORE_DFLT" ]
+}
+
 detect_c_rehash() {
     if [ -z "$INTERNAL_C_REHASH" ] && command -v c_rehash >/dev/null 2>&1; then
         # use c_rehash
@@ -37,6 +44,24 @@ detect_c_rehash() {
         C_REHASH_CMD=c_rehash_internal
     fi
     return 0
+}
+
+sig_ignore() {
+    :
+}
+
+lock() {
+    # lock should be on the same block device so that we could ln to it
+    local lock_path=$(mktemp "${CLR_TRUST_LOCK_FILE}.XXXXXX")
+    local ret
+    ln "$lock_path" "$CLR_TRUST_LOCK_FILE" >/dev/null 2>&1
+    ret=$?
+    rm "$lock_path"
+    return $ret
+}
+
+unlock() {
+    rm -f "${CLR_TRUST_LOCK_FILE}"
 }
 
 # takes cert file as a single argument
@@ -73,9 +98,13 @@ CLR_CLEAR_TRUST_SRC=${CLR_CLEAR_TRUST_SRC:-/usr/share/ca-certs}
 ##### ERROR CODES
 # 0 is always success, used literally
 EPERM=1         # operation not permitted
+EBUSY=16        # resourse busy (cannot acquire trust store lock)
 EINVAL=22       # invalid argument
 EBADST=127      # invalid state / health check does not pass
 EERR=255        # general error
+
+##### LOCK FILE PATH
+CLR_TRUST_LOCK_FILE=/var/lock/clrtrust.lock
 
 # takes single argument: a directory
 # the caller should grab the stdout of the call, it will contain found cert info
@@ -210,7 +239,7 @@ cmd_check() {
         1>&2 echo "${dir} does not exit."
     fi
 
-    if [ "${CLR_TRUST_STORE}" = "${CLR_TRUST_STORE_DFLT}" ]; then
+    if is_system_store; then
         usr="root"
     else
         usr=${USER}
@@ -362,6 +391,15 @@ $tmp"
         return $EERR
     fi
 
+    trap sig_ignore INT HUP TERM
+    if is_system_store && ! lock; then
+        trap - INT HUP TERM
+        1>&2 cat <<EOF
+Failed to acquire lock file: $CLR_TRUST_LOCK_FILE.
+If no other clrtrust process is running, remove the lock file manually and try again.
+EOF
+        return $EBUSY
+    fi
     TMP=$(mktemp -u)
     if [ -e $CLR_TRUST_STORE ]; then
         mv -f $CLR_TRUST_STORE $TMP
@@ -387,7 +425,11 @@ $tmp"
             $CLR_TRUST_STORE/compat/ca-roots.pem
     chmod 644 $CLR_TRUST_STORE/compat/ca-roots.pem
 
+    is_system_store && unlock
+    trap - INT HUP TERM
+
     echo "Trust store generated at ${CLR_TRUST_STORE}"
+
     return 0
 }
 
@@ -766,11 +808,8 @@ detect_c_rehash
 case $COMMAND in
     ("generate"|"add"|"remove"|"restore")
         # must be root if writing to the default location
-        if [ "$CLR_TRUST_STORE" = "$CLR_TRUST_STORE_DFLT" ]; then
-            is_root
-            if [ $? -ne 0 ]; then
-                exit $EPERM
-            fi
+        if is_system_store; then
+            is_root || exit $EPERM
         fi
         ;;
 esac
