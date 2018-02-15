@@ -300,6 +300,7 @@ Usage: ${BASENAME} generate [-h|--help]
     This command does not take arguments.
 
     -h | --help         Prints this help message and exits
+    -f | --force        Force generation of the store
 
     The store is generated from the following locations:
         ${CLR_CLEAR_TRUST_SRC}/trusted
@@ -319,6 +320,7 @@ cmd_generate() {
     local ret
     local opt_skip_check # this option is used when called internally after the
                          # a check has been performed
+    local opt_force=0
 
     while [ $# -gt 0 ]; do
         case $1 in
@@ -328,6 +330,10 @@ cmd_generate() {
                 ;;
             ("-s") # internal option
                 opt_skip_check=1
+                shift
+                ;;
+            ("-f"|"--force")
+                opt_force=1
                 shift
                 ;;
             (*)
@@ -348,6 +354,16 @@ cmd_generate() {
 
     # find all the certificates
     ca_certs=$(find_all_certs)
+
+    if [ -z "${ca_certs}" ] && is_system_store && [ $opt_force -ne 1 ]; then
+        1>&2 cat <<EOF
+No certificates were found in:
+    ${CLR_LOCAL_TRUST_SRC}/trusted
+    ${CLR_CLEAR_TRUST_SRC}/trusted
+Will not generate empty store. Use --force to override.
+EOF
+        return $EBADST
+    fi
 
     # handle the duplicates
     dup_certs=$(echo "${ca_certs}" | cut -f 2 | sort | uniq -d)
