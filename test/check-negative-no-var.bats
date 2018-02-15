@@ -13,6 +13,9 @@ setup() {
 }
 
 @test "check fails when there's no parent for trust store" {
+    if [ -z "${USER}" ]; then
+        skip "mock chroot environment. \$USER is not defined."
+    fi
     run $CLRTRUST check
     [ $status -ne 0 ]
     [ -n "$output" ]
