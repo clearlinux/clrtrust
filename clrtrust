@@ -809,7 +809,7 @@ while [ $# -gt 0 ]; do
             shift
             continue
             ;;
-        ("generate"|"list"|"add"|"remove"|"restore"|"check")
+        (*)
             COMMAND=$1
             shift
             ;;
