@@ -51,9 +51,14 @@ sig_ignore() {
 }
 
 lock() {
-    # lock should be on the same block device so that we could ln to it
-    local lock_path=$(mktemp "${CLR_TRUST_LOCK_FILE}.XXXXXX")
+    local lock_path
     local ret
+    # lock should be on the same block device so that we could ln to it
+    lock_path=$(mktemp "${CLR_TRUST_LOCK_FILE}.XXXXXX")
+    ret=$?
+    if [ $ret -ne 0 ]; then
+        return $ret
+    fi
     ln "$lock_path" "$CLR_TRUST_LOCK_FILE" >/dev/null 2>&1
     ret=$?
     rm "$lock_path"
@@ -104,7 +109,23 @@ EBADST=127      # invalid state / health check does not pass
 EERR=255        # general error
 
 ##### LOCK FILE PATH
-CLR_TRUST_LOCK_FILE=/var/lock/clrtrust.lock
+# absolute dirs where we can have lock, must be writeable. potentially, the
+# choice of lock directory could differ between two parallel runs of clrtrust,
+# but we're explicitly not protecting against that
+LOCK_DIRS="/run/lock /var/lock /tmp"
+for lock_dir in $LOCK_DIRS; do
+    if [ -d $lock_dir ] && [ -w $lock_dir ]; then
+        CLR_TRUST_LOCK_FILE=$lock_dir/clrtrust.lock
+        break
+    fi
+done
+
+if [ -z "$CLR_TRUST_LOCK_FILE" ]; then
+    1>&2 cat <<EOF
+Cannot find directory for lock file. Looked in ${LOCK_DIRS}.
+EOF
+    exit $EBADST
+fi
 
 # takes single argument: a directory
 # the caller should grab the stdout of the call, it will contain found cert info
