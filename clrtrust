@@ -877,8 +877,8 @@ case $COMMAND in
         exit $EINVAL
         ;;
     (*)
-        if [ -n $COMMAND ]; then
-            1>&2 echo "Command not understood: $COMMAND"
+        if [ -n "$COMMAND" ]; then
+            1>&2 echo "Command not understood: ${COMMAND}"
         fi
         print_help
         exit $EINVAL
