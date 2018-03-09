@@ -485,11 +485,8 @@ cmd_add() {
     local files
     local ret
     local ca_certs
-    local out
-    local out_content
     local err
-    local err_content
-    local tmp
+    local errors
     local opt_force=0
 
     while [ $# -gt 0 ]; do
@@ -523,84 +520,69 @@ $1"
         print_add_help
         return $EINVAL
     fi
+
     ensure_local_trust_src
+
     files=$(echo "$files" | sed -e '1d')
     ca_certs=$(find_all_certs)
     distrusted_certs=$(find_certs $CLR_LOCAL_TRUST_SRC/distrusted)
+
     err=$(mktemp)
-    out=$(mktemp)
     tmp=$(mktemp)
+
+    trap sig_ignore INT HUP TERM
+
     echo "$files" | while read f; do
         if [ ! -f "$f" ]; then
-            echo "No such file $f."
-            # get the certificate from the list
-            # TODO: get the file, assign it to files
+            1>&2 echo "No such file $f. Skipping..."
             continue
         fi
         if ! is_single_cert "$f"; then
-            echo "$f must contain single certificate. Skipping..."
+            1>&2 echo "$f must contain single certificate. Skipping..."
             continue
         fi
         finger=$(openssl x509 -in "${f}" -noout -fingerprint -sha1 2>$tmp)
         if [ $? -ne 0 ]; then
-            echo "$f is not an X.509 certificate. Skipping..."
+            1>&2 echo "$f is not an X.509 certificate. Skipping..."
             cat $tmp
             continue
         fi
         finger=${finger#SHA1 Fingerprint=}
-        is_root_ca "$f"
-        if [ $? -ne 0 ] && [ $opt_force -ne 1 ]; then
-            cat <<EOF
+        if ! is_root_ca "${f}" && [ $opt_force -ne 1 ]; then
+            1>&2 cat <<EOF
 Certificate $f is not a Root CA. Use --force and proper judgement to enforce.
 EOF
             continue
         fi
-        echo "$ca_certs" | grep "$finger" >/dev/null 2>&1
-        if [ $? -eq 0 ]; then
-            # if it's among trusted certs, then it may be distrusted
-            dcert=$(echo "$distrusted_certs" | grep $finger)
-            if [ $? -eq 0 ]; then
-                1>&2 echo -e "$f\t$finger"
-                continue
+
+        if ! echo "$ca_certs" | grep "$finger" >/dev/null 2>&1; then
+            cp "${f}" $CLR_LOCAL_TRUST_SRC/trusted
+        else
+            # if it's among trusted certs, check if it's distrusted. if so,
+            # "adding" it then is removing it from distrusted before the next
+            # store generation
+            distrusted_f=$(echo "${distrusted_certs}" | grep "$finger" | cut -f 1)
+            if [ -n "${distrusted_f}" ]; then
+                rm "${distrusted_f}"
             else
-                cat <<EOF
+                1>&2 cat <<EOF
 Certificate $f is already trusted. Not adding duplicates.
 EOF
                 continue
             fi
         fi
-        fname=$(basename "$f")
-        if [ -f "$CLR_LOCAL_TRUST_SRC/trusted/$fname" ]; then
-            # FIXME: it's not a duplicate, should really not be picky about file
-            # names.
-            echo "File $fname already exists."
-            continue
-        fi
-    done >$out 2>$err
-    out_content=$(cat $out)
-    if [ -z "$out_content" ]; then
-        err_content=$(cat $err)
-        echo "$files" | while read f; do
-            l=$(echo "$err_content" | grep "${f}")
-            if [ $? -ne 0 ]; then
-                cp "${f}" $CLR_LOCAL_TRUST_SRC/trusted
-            else
-                # lookup distrusted file in the source
-                l=$(echo "$l" | cut -f 2)
-                l=$(echo "$distrusted_certs" | grep "$l" | cut -f 1)
-                if [ -z $l ]; then
-                    1>&2 echo "Internal error: ${f} must be distrusted, but not found"
-                    continue
-                fi
-                rm "${l}"
-            fi
-        done
-        cmd_generate -s
-    else
+    done 2>$err
+    trap - INT HUP TERM
+    errors=$(cat $err)
+    if [ -n "${errors}" ]; then
+        # if some files had errors, return error exit code
         ret=$EERR
-        1>&2 echo "$out_content"
+        1>&2 cat $err
+    else
+        ret=0
     fi
-    rm $err $tmp $out
+    rm $tmp $err
+    cmd_generate -s
     return $ret
 }
 
@@ -724,25 +706,29 @@ $1"
     fi
 
     ensure_local_trust_src
+
     err=$(mktemp)
     out=$(mktemp)
+
     files=$(echo "$files" | sed -e '1d')
+
     test -n "$files" && echo "$files" | while read f; do
         finger=$(openssl x509 -in "${f}" -noout -fingerprint -sha1 2>/dev/null)
         if [ $? -ne 0 ]; then
-            1>&2 echo "${f} is not an X.509 certificate." >>$err
+            1>&2 echo "${f} is not an X.509 certificate."
             continue
         fi
         finger=${finger#SHA1 Fingerprint=}
         printf "%s\t%s\n" "${f}" "${finger}"
-    done >$out
+    done >$out 2>$err
+
     invld_files=$(cat $err)
+
     if [ -n "$invld_files" ]; then
-        2>&1 echo "$invld_files
-Trust store has not been modified."
-        rm $out $err
-        return $EERR
+        2>&1 echo "$invld_files"
+        ret=$EERR
     fi
+
     files=$(cat $out)
     ids=$(echo $ids && (echo "$files" | cut -f 2))
     certs=$(find_all_certs)
@@ -759,6 +745,7 @@ Trust store has not been modified."
             fi
         fi
     done >$out
+
     files=$(cat $out)
     if [ -n "$files" ]; then
         echo "$files" | while read f; do
@@ -778,7 +765,7 @@ Trust store has not been modified."
         echo "Nothing to do."
     fi
     rm $err $out
-    return 0
+    return $ret
 }
 
 print_help() {
