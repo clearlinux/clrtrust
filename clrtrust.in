@@ -108,6 +108,29 @@ EINVAL=22       # invalid argument
 EBADST=127      # invalid state / health check does not pass
 EERR=255        # general error
 
+##### LOCATION OF THE HELPER
+# always favor env override. if not, prefer the helper that is found next to the
+# script itself (it indicates the development environment). if not, look at the
+# configured location.
+LIBEXEC_DIR=LIBEXEC_CONFIG_VALUE
+CLR_HELPER_NAME=clrtrust-helper
+for helper_dir in ${CLR_LIBEXEC_DIR:+"${CLR_LIBEXEC_DIR}"} "$(dirname $0)" "${LIBEXEC_DIR}"; do
+    if [ -x "${helper_dir}/${CLR_HELPER_NAME}" ]; then
+        CLR_HELPER_CMD="${helper_dir}/${CLR_HELPER_NAME}"
+        break
+    fi
+done
+
+if [ ! -x "$CLR_HELPER_CMD" ]; then
+    1>&2 echo "Cannot locate the helper executable (${CLR_HELPER_NAME})"
+    exit $EBADST
+fi
+
+# get absolute path to the helper (to be able to run in subshells)
+if [[ "${CLR_HELPER_CMD}" != /* ]]; then
+    CLR_HELPER_CMD=$(realpath "${CLR_HELPER_CMD}")
+fi
+
 ##### LOCK FILE PATH
 # absolute dirs where we can have lock, must be writeable. potentially, the
 # choice of lock directory could differ between two parallel runs of clrtrust,
@@ -135,21 +158,34 @@ find_certs() {
     local dir=$1
     if [ -z $dir ]; then return 255; fi
     if [ ! -d $dir ]; then return 255; fi
-    find $dir -maxdepth 1 -type f | while read f; do
-        finger=$(openssl x509 -in "${f}" -noout -fingerprint -sha1 2>/dev/null)
-        if [ $? -ne 0 ]; then
-            1>&2 echo "WARNING: file ${f} is not a certificate"
-            continue
-        fi
-        finger=${finger#SHA1 Fingerprint=}
-        printf "%s\t%s\n" "${f}" "${finger}"
-    done
-    return 0
+    find $dir -maxdepth 1 -type f | "${CLR_HELPER_CMD}" -f
+
+    # NB: CLR_HELPER_CMD will return 2 exit status if some of the certificates
+    # cannot be opened/processed. calls to find_certs rely on this fact
+    # throughout this script.
 }
 
 find_all_certs() {
+    local ret
+    local nret
     find_certs $CLR_CLEAR_TRUST_SRC/trusted
+    ret=$?
     find_certs $CLR_LOCAL_TRUST_SRC/trusted
+    nret=$?
+    if [ $nret -ne 0 ]; then
+        ret=$nret
+    fi
+    return $ret
+}
+
+filter_bad_certs() {
+    local bad_cert_files=$(echo "$1" | sed -ne '/\tERROR$/ { s/\tERROR$//; p }')
+    if [ -n "$bad_cert_files" ]; then
+        for bad_file in "$bad_cert_files"; do
+            1>&2 echo "$bad_file is not a PEM-encoded X.509 certificate. Skipping..."
+        done
+    fi
+    echo "$1" | sed -e '/\tERROR$/d'
 }
 
 # a c_rehash implementation for creating openssl-style CApath. this
@@ -166,14 +202,20 @@ c_rehash_internal() {
     fi
     (
         cd "$dir"
-        find . -maxdepth 1 -type f | while read f; do
-            name=$(openssl x509 -in "$f" -noout -subject_hash 2>/dev/null)
+        hashes=$(find . -maxdepth 1 -type f | "${CLR_HELPER_CMD}" -s)
+        if [ $? -ne 0 ]; then
+            return 1
+        fi
+        echo "$hashes" | while IFS=$'\t' read f h; do
             lnno=0
-            while ! ln -s "$f" "${name}.${lnno}" && ((lnno++ < 100)); do
+            while ! ln -s "$f" "${h}.${lnno}" && ((lnno++ < 100)); do
                 :
             done 2>/dev/null
         done
     )
+    if [ $? -ne 0 ]; then
+        return 1
+    fi
     return 0
 }
 
@@ -338,7 +380,7 @@ cmd_generate() {
     local dup_certs_cnt
     local distrust_certs_cnt
     local tmp
-    local ret
+    local ret=0
     local opt_skip_check # this option is used when called internally after the
                          # a check has been performed
     local opt_force=0
@@ -375,6 +417,10 @@ cmd_generate() {
 
     # find all the certificates
     ca_certs=$(find_all_certs)
+    if [ $? -eq 2 ]; then
+        ca_certs=$(filter_bad_certs "$ca_certs")
+        ret=$EBADST
+    fi
 
     if [ -z "${ca_certs}" ] && is_system_store && [ $opt_force -ne 1 ]; then
         1>&2 cat <<EOF
@@ -401,6 +447,10 @@ $tmp"
 
     # remove the distrusted ones
     distrust_certs=$(find_certs $CLR_LOCAL_TRUST_SRC/distrusted)
+    if [ $? -eq 2 ]; then
+        distrust_certs=$(filter_bad_certs "$distrust_certs")
+        ret=$EBADST
+    fi
     ca_certs_cnt=$(echo "$ca_certs" | wc -l)
     if [ -n "$distrust_certs" ]; then
         distrust_certs_cnt=$(echo "$distrust_certs" | wc -l)
@@ -467,7 +517,7 @@ EOF
 
     echo "Trust store generated at ${CLR_TRUST_STORE}"
 
-    return 0
+    return $ret
 }
 
 print_add_help() {
@@ -525,7 +575,15 @@ $1"
 
     files=$(echo "$files" | sed -e '1d')
     ca_certs=$(find_all_certs)
+    if [ $? -eq 2 ]; then
+        ca_certs=$(filter_bad_certs "$ca_certs")
+        ret=$EBADST
+    fi
     distrusted_certs=$(find_certs $CLR_LOCAL_TRUST_SRC/distrusted)
+    if [ $? -eq 2 ]; then
+        distrusted_certs=$(filter_bad_certs "$distrusted_certs")
+        ret=$EBADST
+    fi
 
     err=$(mktemp)
     tmp=$(mktemp)
@@ -543,7 +601,7 @@ $1"
         fi
         finger=$(openssl x509 -in "${f}" -noout -fingerprint -sha1 2>$tmp)
         if [ $? -ne 0 ]; then
-            1>&2 echo "$f is not an X.509 certificate. Skipping..."
+            1>&2 echo "$f is not a PEM-encoded X.509 certificate. Skipping..."
             cat $tmp
             continue
         fi
@@ -732,6 +790,10 @@ $1"
     files=$(cat $out)
     ids=$(echo $ids && (echo "$files" | cut -f 2))
     certs=$(find_all_certs)
+    if [ $? -eq 2 ]; then
+        certs=$(filter_bad_certs "$certs")
+        ret=$EINVAL
+    fi
     for id in $ids; do
         f=$(echo "$certs" | grep $id)
         if [ $? -eq 0 ]; then
