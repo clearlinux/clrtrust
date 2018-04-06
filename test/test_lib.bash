@@ -6,6 +6,11 @@ find_clrtrust() {
     else
         return 1
     fi
+    if [ -x $BATS_TEST_DIRNAME/../clrtrust-helper ]; then
+        CLRTRUST_HELPER=$(realpath $BATS_TEST_DIRNAME/../clrtrust-helper)
+    else
+        return 1
+    fi
 }
 
 setup_fs() {
