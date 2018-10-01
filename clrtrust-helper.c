@@ -60,7 +60,7 @@ int main(int argc, char **argv) {
     unsigned long subject_hash;
 
     unsigned int i;
-    char c;
+    int c;
 
     char *fname = NULL;
     size_t sz = 0;
