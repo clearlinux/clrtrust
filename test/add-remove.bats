@@ -27,8 +27,7 @@ setup() {
     cnt=$(echo "$output" | grep ^id | wc -l)
     [ $cnt -eq 2 ]
     # add duplicate
-    run $CLRTRUST add $CERTS/c1.pem
-    [ $status -eq 255 ]
+    $CLRTRUST add $CERTS/c1.pem
     # add two
     $CLRTRUST add $CERTS/c[3=4].pem
     run $CLRTRUST list

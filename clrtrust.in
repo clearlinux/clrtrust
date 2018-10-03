@@ -623,7 +623,7 @@ EOF
             if [ -n "${distrusted_f}" ]; then
                 rm "${distrusted_f}"
             else
-                1>&2 cat <<EOF
+                cat <<EOF
 Certificate $f is already trusted. Not adding duplicates.
 EOF
                 continue
