@@ -536,6 +536,10 @@ EOF
             $CLR_TRUST_STORE/compat/ca-roots.pem
     chmod 644 $CLR_TRUST_STORE/compat/ca-roots.pem
 
+    # Compatibility link for statically linked binaries
+    # This will yield /etc/ssl/certs/ca-certificates.crt path through tmpfiles
+    ln -s ../compat/ca-roots.pem $CLR_TRUST_STORE/anchors/ca-certificates.crt
+
     is_system_store && unlock
     trap - INT HUP TERM
 
