@@ -12,7 +12,7 @@ setup() {
 @test "add, remove files with spaces in names" {
     $CLRTRUST generate
     cnt=$(ls $STORE/anchors | wc -l)
-    [ $cnt -eq 2 ] # file and symlink
+    [ $cnt -eq 3 ] # file and symlink
     run $CLRTRUST list
     [ $status -eq 0 ]
     cnt=$(echo "$output"| grep ^id | wc -l)

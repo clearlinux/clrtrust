@@ -15,7 +15,7 @@ setup() {
     $CLRTRUST generate
     cnt=$(ls $STORE/anchors | wc -l)
     [ ! -f $STORE/anchors/c2.pem ]
-    [ $cnt -eq 6 ]
+    [ $cnt -eq 7 ]
     cnt=$($CLRTRUST list | grep ^id | wc -l)
     [ $cnt -eq 3 ]
 }

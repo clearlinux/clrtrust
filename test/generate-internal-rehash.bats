@@ -13,9 +13,9 @@ setup() {
 @test "generate store, using internal rehash" {
     $CLRTRUST -c generate
     cnt=$(ls $STORE/anchors | wc -l)
-    [ $cnt -eq 8 ]
+    [ $cnt -eq 9 ]
     cnt=$(find $STORE/anchors -type l | wc -l)
-    [ $cnt -eq 4 ]
+    [ $cnt -eq 5 ]
     cnt=$($CLRTRUST list | grep ^id | wc -l)
     [ $cnt -eq 4 ]
     [ -f $STORE/compat/ca-roots.keystore ]

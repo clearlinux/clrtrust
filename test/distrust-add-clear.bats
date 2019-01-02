@@ -13,7 +13,7 @@ setup() {
 @test "distrust Clear-provided cert, add it back" {
     $CLRTRUST generate
     cnt=$(ls $STORE/anchors | wc -l)
-    [ $cnt -eq 8 ]
+    [ $cnt -eq 9 ]
     cnt=$($CLRTRUST list | grep ^id | wc -l)
     [ $cnt -eq 4 ]
     $CLRTRUST remove $CERTS/c1.pem

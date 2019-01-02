@@ -11,7 +11,8 @@ setup() {
 @test "generate empty store, fail to add certificates" {
     $CLRTRUST generate
     cnt=$(ls $STORE/anchors | wc -l)
-    [ $cnt -eq 0 ]
+    ls $STORE/anchors
+    [ $cnt -eq 1 ]
     run $CLRTRUST list
     [ $status -eq 0 ]
     [ -z "$output" ]

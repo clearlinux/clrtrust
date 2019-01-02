@@ -12,7 +12,7 @@ setup() {
 @test "generate store, all provided by Clear Linux" {
     $CLRTRUST generate
     cnt=$(ls $STORE/anchors | wc -l)
-    [ $cnt -eq 8 ]
+    [ $cnt -eq 9 ]
     cnt=$($CLRTRUST list | grep ^id | wc -l)
     [ $cnt -eq 4 ]
     [ -f $STORE/compat/ca-roots.keystore ]

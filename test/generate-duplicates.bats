@@ -18,7 +18,7 @@ setup() {
     run $CLRTRUST generate
     [ $status -eq 0 ]
     cnt=$(ls $STORE/anchors | wc -l)
-    [ $cnt -eq 8 ]
+    [ $cnt -eq 9 ]
     cnt=$($CLRTRUST list | grep ^id | wc -l)
     [ $cnt -eq 4 ]
 }
@@ -28,7 +28,7 @@ setup() {
     run $CLRTRUST generate
     [ $status -eq 0 ]
     cnt=$(ls $STORE/anchors | wc -l)
-    [ $cnt -eq 8 ]
+    [ $cnt -eq 9 ]
     cnt=$($CLRTRUST list | grep ^id | wc -l)
     [ $cnt -eq 4 ]
     $CLRTRUST list
@@ -39,7 +39,7 @@ setup() {
     run $CLRTRUST generate
     [ $status -eq 0 ]
     cnt=$(ls $STORE/anchors | wc -l)
-    [ $cnt -eq 8 ]
+    [ $cnt -eq 9 ]
     cnt=$($CLRTRUST list | grep ^id | wc -l)
     [ $cnt -eq 4 ]
     $CLRTRUST list
