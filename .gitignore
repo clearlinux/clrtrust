@@ -1,3 +1,5 @@
 *.o
 clrtrust-helper
 clrtrust
+man/
+!man/*.md
