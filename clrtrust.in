@@ -627,7 +627,7 @@ $1"
             1>&2 echo "$f must contain single certificate. Skipping..."
             continue
         fi
-        finger=$(openssl x509 -in "${f}" -noout -fingerprint -sha1 2>$tmp)
+        finger=$(openssl x509 -in "${f}" -noout -fingerprint -SHA1 2>$tmp)
         if [ $? -ne 0 ]; then
             1>&2 echo "$f is not a PEM-encoded X.509 certificate. Skipping..."
             cat $tmp
@@ -719,7 +719,7 @@ cmd_list() {
     fi
 
     echo "$certs" | while read f; do
-        info=$(openssl x509 -in "${f}" -noout -fingerprint -sha1 -issuer -enddate)
+        info=$(openssl x509 -in "${f}" -noout -fingerprint -SHA1 -issuer -enddate)
         if [ $? -ne 0 ]; then
             1>&2 echo "${f} is not an X.509 certificate."
         fi
@@ -799,7 +799,7 @@ $1"
     files=$(echo "$files" | sed -e '1d')
 
     test -n "$files" && echo "$files" | while read f; do
-        finger=$(openssl x509 -in "${f}" -noout -fingerprint -sha1 2>/dev/null)
+        finger=$(openssl x509 -in "${f}" -noout -fingerprint -SHA1 2>/dev/null)
         if [ $? -ne 0 ]; then
             1>&2 echo "${f} is not an X.509 certificate."
             continue
